@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Environment / secrets
+.env
+bot/storage/
+
+# Model weights & large binaries
+*.gguf
+*.safetensors
+*.pt
+*.pth
+*.bin
+
+# Training checkpoints
+outputs/**/checkpoint-*/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Generated reports (run-time output)
+reports/
+
+# OS
+.DS_Store
+Thumbs.db
