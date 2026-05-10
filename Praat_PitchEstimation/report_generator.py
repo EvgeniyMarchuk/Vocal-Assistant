@@ -28,6 +28,9 @@ import urllib.request
 import warnings
 from pathlib import Path
 
+import subprocess
+import tempfile
+
 import librosa
 import matplotlib
 matplotlib.use("Agg")
@@ -366,125 +369,144 @@ def compute_spectral_features(y, sr, n_fft=4096, hop_length=512):
 # Full feature extraction
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _ensure_wav(audio_path: str) -> tuple[str, bool]:
+    """Return (wav_path, is_tmp). Converts non-WAV files via ffmpeg."""
+    if Path(audio_path).suffix.lower() == ".wav":
+        return audio_path, False
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    tmp.close()
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", audio_path, "-ar", "16000", "-ac", "1",
+         "-sample_fmt", "s16", tmp.name],
+        check=True, capture_output=True,
+    )
+    return tmp.name, True
+
+
 def extract_features(audio_path: str) -> dict:
     audio_path = str(audio_path)
-    snd = parselmouth.Sound(audio_path)
-    y, sr = librosa.load(audio_path, sr=None, mono=True)
-    duration = float(snd.get_total_duration())
+    wav_path, is_tmp = _ensure_wav(audio_path)
+    try:
+        snd = parselmouth.Sound(wav_path)
+        y, sr = librosa.load(wav_path, sr=None, mono=True)
+        duration = float(snd.get_total_duration())
 
-    # Pitch / F0
-    pitch = snd.to_pitch(time_step=TIME_STEP, pitch_floor=PITCH_FLOOR, pitch_ceiling=PITCH_CEILING)
-    time = pitch.xs()
-    f0 = pitch.selected_array["frequency"].astype(float)
-    f0[f0 <= 0] = np.nan
-    voiced_mask = np.isfinite(f0)
+        # Pitch / F0
+        pitch = snd.to_pitch(time_step=TIME_STEP, pitch_floor=PITCH_FLOOR, pitch_ceiling=PITCH_CEILING)
+        time = pitch.xs()
+        f0 = pitch.selected_array["frequency"].astype(float)
+        f0[f0 <= 0] = np.nan
+        voiced_mask = np.isfinite(f0)
 
-    # Intensity
-    intensity = snd.to_intensity(time_step=TIME_STEP, minimum_pitch=PITCH_FLOOR)
-    int_time = intensity.xs()
-    int_vals = intensity.values[0].astype(float)
-    int_interp = np.interp(time, int_time, int_vals)
+        # Intensity
+        intensity = snd.to_intensity(time_step=TIME_STEP, minimum_pitch=PITCH_FLOOR)
+        int_time = intensity.xs()
+        int_vals = intensity.values[0].astype(float)
+        int_interp = np.interp(time, int_time, int_vals)
 
-    # HNR
-    harmonicity = snd.to_harmonicity_cc(time_step=TIME_STEP, minimum_pitch=PITCH_FLOOR)
-    hnr_time = harmonicity.xs()
-    hnr_vals = harmonicity.values[0].astype(float)
-    hnr_vals[hnr_vals <= -200] = np.nan
-    vh = np.isfinite(hnr_vals)
-    hnr_interp = np.interp(time, hnr_time[vh], hnr_vals[vh]) if vh.sum() >= 2 else np.full_like(time, np.nan)
+        # HNR
+        harmonicity = snd.to_harmonicity_cc(time_step=TIME_STEP, minimum_pitch=PITCH_FLOOR)
+        hnr_time = harmonicity.xs()
+        hnr_vals = harmonicity.values[0].astype(float)
+        hnr_vals[hnr_vals <= -200] = np.nan
+        vh = np.isfinite(hnr_vals)
+        hnr_interp = np.interp(time, hnr_time[vh], hnr_vals[vh]) if vh.sum() >= 2 else np.full_like(time, np.nan)
 
-    # Formants
-    formant = snd.to_formant_burg(time_step=TIME_STEP)
-    f1 = np.array([formant.get_value_at_time(1, t) for t in time], dtype=float)
-    f2 = np.array([formant.get_value_at_time(2, t) for t in time], dtype=float)
-    f3 = np.array([formant.get_value_at_time(3, t) for t in time], dtype=float)
+        # Formants
+        formant = snd.to_formant_burg(time_step=TIME_STEP)
+        f1 = np.array([formant.get_value_at_time(1, t) for t in time], dtype=float)
+        f2 = np.array([formant.get_value_at_time(2, t) for t in time], dtype=float)
+        f3 = np.array([formant.get_value_at_time(3, t) for t in time], dtype=float)
 
-    # Jitter / Shimmer
-    pp = praat_call(snd, "To PointProcess (periodic, cc)", PITCH_FLOOR, PITCH_CEILING)
-    jitter = float(praat_call(pp, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3))
-    shimmer = float(praat_call([snd, pp], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6))
+        # Jitter / Shimmer
+        pp = praat_call(snd, "To PointProcess (periodic, cc)", PITCH_FLOOR, PITCH_CEILING)
+        jitter = float(praat_call(pp, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3))
+        shimmer = float(praat_call([snd, pp], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6))
 
-    # Onsets (intensity-based)
-    onsets, onset_env = detect_intensity_onsets(int_time, int_vals)
-    tempo = estimate_tempo(onsets)
+        # Onsets (intensity-based)
+        onsets, onset_env = detect_intensity_onsets(int_time, int_vals)
+        tempo = estimate_tempo(onsets)
 
-    # RMS
-    rms = librosa.feature.rms(y=y)[0]
-    rms_time = librosa.frames_to_time(np.arange(len(rms)), sr=sr)
-    rms_interp = np.interp(time, rms_time, rms)
+        # RMS
+        rms = librosa.feature.rms(y=y)[0]
+        rms_time = librosa.frames_to_time(np.arange(len(rms)), sr=sr)
+        rms_interp = np.interp(time, rms_time, rms)
 
-    # Silent gaps
-    silent_gaps = []
-    start = None
-    for i, uv in enumerate(~voiced_mask):
-        if uv and start is None:
-            start = i
-        if (not uv or i == len(voiced_mask) - 1) and start is not None:
-            end = i if uv else i + 1
-            gap = time[min(end - 1, len(time) - 1)] - time[start]
-            if gap >= 0.15:
-                silent_gaps.append(float(gap))
-            start = None
+        # Silent gaps
+        silent_gaps = []
+        start = None
+        for i, uv in enumerate(~voiced_mask):
+            if uv and start is None:
+                start = i
+            if (not uv or i == len(voiced_mask) - 1) and start is not None:
+                end = i if uv else i + 1
+                gap = time[min(end - 1, len(time) - 1)] - time[start]
+                if gap >= 0.15:
+                    silent_gaps.append(float(gap))
+                start = None
 
-    # Spectral features (Estill)
-    spectral = compute_spectral_features(y, sr)
+        # Spectral features (Estill)
+        spectral = compute_spectral_features(y, sr)
 
-    # CPP contour
-    cpp_times, cpp_contour = compute_cpp_contour(y, sr)
+        # CPP contour
+        cpp_times, cpp_contour = compute_cpp_contour(y, sr)
 
-    # H1-H2 contour
-    h1h2_times, h1h2_contour = compute_h1h2_contour(y, sr, f0, time)
+        # H1-H2 contour
+        h1h2_times, h1h2_contour = compute_h1h2_contour(y, sr, f0, time)
 
-    # MFCC (20 coefficients)
-    hop = max(1, int(TIME_STEP * sr))
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20, hop_length=hop, n_fft=2048)
-    mfcc_times = librosa.frames_to_time(np.arange(mfcc.shape[1]), sr=sr, hop_length=hop)
+        # MFCC (20 coefficients)
+        hop = max(1, int(TIME_STEP * sr))
+        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20, hop_length=hop, n_fft=2048)
+        mfcc_times = librosa.frames_to_time(np.arange(mfcc.shape[1]), sr=sr, hop_length=hop)
 
-    # Log mel spectrogram
-    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, hop_length=hop, n_fft=2048)
-    logmel = librosa.power_to_db(mel, ref=np.max)
-    logmel_times = librosa.frames_to_time(np.arange(logmel.shape[1]), sr=sr, hop_length=hop)
+        # Log mel spectrogram
+        mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, hop_length=hop, n_fft=2048)
+        logmel = librosa.power_to_db(mel, ref=np.max)
+        logmel_times = librosa.frames_to_time(np.arange(logmel.shape[1]), sr=sr, hop_length=hop)
 
-    return {
-        "path": audio_path,
-        "sr": sr,
-        "y": y,
-        "duration": duration,
-        "time": time,
-        "f0": f0,
-        "voiced_mask": voiced_mask,
-        "voiced_ratio": float(np.mean(voiced_mask)) if voiced_mask.size else np.nan,
-        "intensity": int_interp,
-        "int_time": int_time,
-        "int_vals": int_vals,
-        "hnr": hnr_interp,
-        "f1": f1,
-        "f2": f2,
-        "f3": f3,
-        "jitter": jitter,
-        "shimmer": shimmer,
-        "onsets": onsets,
-        "onset_env": onset_env,
-        "tempo": tempo,
-        "rms": rms_interp,
-        "silent_gaps": np.array(silent_gaps, dtype=float),
-        # Estill
-        "alpha_ratio_db": spectral["alpha_ratio_db"],
-        "singer_formant_pct": spectral["singer_formant_pct"],
-        "spectral_tilt_db_oct": spectral["spectral_tilt_db_oct"],
-        "ltas_freqs": spectral["ltas_freqs"],
-        "ltas_db": spectral["ltas_db"],
-        "alpha_times": spectral["alpha_times"],
-        "alpha_contour": spectral["alpha_contour"],
-        "cpp_times": cpp_times,
-        "cpp_contour": cpp_contour,
-        "h1h2_times": h1h2_times,
-        "h1h2_contour": h1h2_contour,
-        "mfcc": mfcc,
-        "mfcc_times": mfcc_times,
-        "logmel": logmel,
-        "logmel_times": logmel_times,
-    }
+        return {
+            "path": audio_path,
+            "sr": sr,
+            "y": y,
+            "duration": duration,
+            "time": time,
+            "f0": f0,
+            "voiced_mask": voiced_mask,
+            "voiced_ratio": float(np.mean(voiced_mask)) if voiced_mask.size else np.nan,
+            "intensity": int_interp,
+            "int_time": int_time,
+            "int_vals": int_vals,
+            "hnr": hnr_interp,
+            "f1": f1,
+            "f2": f2,
+            "f3": f3,
+            "jitter": jitter,
+            "shimmer": shimmer,
+            "onsets": onsets,
+            "onset_env": onset_env,
+            "tempo": tempo,
+            "rms": rms_interp,
+            "silent_gaps": np.array(silent_gaps, dtype=float),
+            # Estill
+            "alpha_ratio_db": spectral["alpha_ratio_db"],
+            "singer_formant_pct": spectral["singer_formant_pct"],
+            "spectral_tilt_db_oct": spectral["spectral_tilt_db_oct"],
+            "ltas_freqs": spectral["ltas_freqs"],
+            "ltas_db": spectral["ltas_db"],
+            "alpha_times": spectral["alpha_times"],
+            "alpha_contour": spectral["alpha_contour"],
+            "cpp_times": cpp_times,
+            "cpp_contour": cpp_contour,
+            "h1h2_times": h1h2_times,
+            "h1h2_contour": h1h2_contour,
+            "mfcc": mfcc,
+            "mfcc_times": mfcc_times,
+            "logmel": logmel,
+            "logmel_times": logmel_times,
+        }
+    finally:
+        if is_tmp:
+            Path(wav_path).unlink(missing_ok=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
