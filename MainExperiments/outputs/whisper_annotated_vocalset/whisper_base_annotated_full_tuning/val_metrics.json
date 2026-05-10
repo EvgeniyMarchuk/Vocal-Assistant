@@ -1,0 +1,17 @@
+{
+  "train_metrics": {
+    "accuracy": 0.6948868398994132,
+    "f1_macro": 0.6178086364323967,
+    "precision_macro": 0.6589568005396732,
+    "recall_macro": 0.6081634106883806
+  },
+  "val_metrics": {
+    "accuracy": 0.5935251798561151,
+    "f1_macro": 0.5484196384776671,
+    "precision_macro": 0.6118143374497398,
+    "recall_macro": 0.57234375
+  },
+  "val_trainer_metrics": {
+    "eval_skipped_due_to_callback_issue": true
+  }
+}

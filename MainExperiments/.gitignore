@@ -1,0 +1,19 @@
+# Python/Jupyter cache
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Editor-local settings
+.vscode/
+
+# Large training artifacts and checkpoints
+outputs/**/checkpoint-*/
+*.safetensors
+*.pt
+*.pth
+*.bin
+
+# Logs and temporary files
+*.log
+*.tmp
+*~

@@ -1,0 +1,17 @@
+,Belt_Harsh,Breathy,Fast_Articulated_Forte,Fast_Articulated_Piano,FullVoice,Lip_Trill,MessaDiVoce,MoltoVibrato,Slow_Legato_Forte,Slow_Legato_Piano,Slow_MoltoVibrato,Slow_StraightTone,StraightTone,Trill,Trillo,VeryBreathy
+Belt_Harsh,119,1,0,4,0,0,0,1,0,11,4,7,11,0,0,12
+Breathy,1,38,0,0,0,0,0,1,0,26,0,0,7,0,1,8
+Fast_Articulated_Forte,21,0,46,121,0,3,2,0,9,21,10,2,3,0,40,20
+Fast_Articulated_Piano,4,2,9,168,0,5,0,2,1,39,2,2,6,0,34,44
+FullVoice,0,0,0,4,39,0,0,0,1,5,0,0,16,8,11,1
+Lip_Trill,0,0,0,0,0,140,0,0,0,0,0,1,0,0,0,4
+MessaDiVoce,0,0,0,0,0,1,83,0,0,1,0,0,3,1,0,0
+MoltoVibrato,2,0,0,0,0,0,0,58,7,40,1,0,14,0,1,0
+Slow_Legato_Forte,5,0,0,0,0,0,1,7,21,43,5,2,3,0,1,0
+Slow_Legato_Piano,7,3,0,0,0,0,1,2,3,304,7,6,15,1,0,4
+Slow_MoltoVibrato,4,0,0,3,0,0,0,4,0,30,23,8,2,0,1,4
+Slow_StraightTone,4,3,0,0,1,0,0,1,0,18,3,33,15,0,0,7
+StraightTone,9,2,0,2,6,0,0,14,0,36,1,5,142,1,1,6
+Trill,0,0,0,0,7,0,3,1,0,2,1,0,8,47,11,0
+Trillo,1,1,0,3,1,0,0,0,0,3,0,0,1,5,68,0
+VeryBreathy,1,13,0,1,0,1,0,0,0,14,0,7,3,0,0,43

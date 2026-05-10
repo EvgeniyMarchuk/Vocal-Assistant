@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local LLM/model binaries
+*.gguf
+*.safetensors
+*.pt
+*.pth
+*.bin
+
+# Logs and temporary files
+*.log
+*.tmp
+*~

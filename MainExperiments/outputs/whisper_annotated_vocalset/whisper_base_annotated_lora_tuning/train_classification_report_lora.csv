@@ -1,0 +1,20 @@
+,precision,recall,f1-score,support
+Belt_Harsh,1.0,1.0,1.0,170.0
+Breathy,1.0,1.0,1.0,82.0
+Fast_Articulated_Forte,1.0,1.0,1.0,298.0
+Fast_Articulated_Piano,1.0,1.0,1.0,318.0
+FullVoice,1.0,1.0,1.0,85.0
+Lip_Trill,1.0,1.0,1.0,145.0
+MessaDiVoce,1.0,1.0,1.0,89.0
+MoltoVibrato,1.0,1.0,1.0,123.0
+Slow_Legato_Forte,1.0,1.0,1.0,88.0
+Slow_Legato_Piano,1.0,1.0,1.0,353.0
+Slow_MoltoVibrato,1.0,1.0,1.0,79.0
+Slow_StraightTone,1.0,1.0,1.0,85.0
+StraightTone,1.0,1.0,1.0,225.0
+Trill,1.0,1.0,1.0,80.0
+Trillo,1.0,1.0,1.0,83.0
+VeryBreathy,1.0,1.0,1.0,83.0
+accuracy,1.0,1.0,1.0,1.0
+macro avg,1.0,1.0,1.0,2386.0
+weighted avg,1.0,1.0,1.0,2386.0
