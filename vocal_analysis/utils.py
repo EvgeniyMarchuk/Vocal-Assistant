@@ -19,6 +19,7 @@ OLLAMA_CHAT_URL = os.environ.get("OLLAMA_CHAT_URL", "http://127.0.0.1:11434/api/
 # Math helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def safe_mean(v):
     a = np.asarray(v, dtype=float)
     a = a[np.isfinite(a)]

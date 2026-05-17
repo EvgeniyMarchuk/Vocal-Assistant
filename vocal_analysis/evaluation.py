@@ -3,22 +3,22 @@ from __future__ import annotations
 import numpy as np
 
 from .features import attack_summary, vibrato_metrics
-from .utils import (
-    clamp,
-    fmt,
-    safe_mean,
-    safe_median,
-    safe_pct,
-    safe_std,
-)
-
+from .utils import clamp, fmt, safe_mean, safe_median, safe_pct, safe_std
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Scoring
 # ─────────────────────────────────────────────────────────────────────────────
 
-def evaluate(teacher, student, alignment, onset_errors, duration_errors,
-             teacher_attack_rows, student_attack_rows):
+
+def evaluate(
+    teacher,
+    student,
+    alignment,
+    onset_errors,
+    duration_errors,
+    teacher_attack_rows,
+    student_attack_rows,
+):
     pe = alignment["pitch_errors_cents"]
     ape = np.abs(pe)
 
@@ -33,8 +33,11 @@ def evaluate(teacher, student, alignment, onset_errors, duration_errors,
 
     onset_mae = safe_mean(np.abs(onset_errors)) if len(onset_errors) else np.nan
     dur_mae = safe_mean(np.abs(duration_errors)) if len(duration_errors) else np.nan
-    tempo_diff = abs(student["tempo"] - teacher["tempo"]) if (
-        np.isfinite(student["tempo"]) and np.isfinite(teacher["tempo"])) else np.nan
+    tempo_diff = (
+        abs(student["tempo"] - teacher["tempo"])
+        if (np.isfinite(student["tempo"]) and np.isfinite(teacher["tempo"]))
+        else np.nan
+    )
 
     hnr_t = safe_mean(teacher["hnr"])
     hnr_s = safe_mean(student["hnr"])
@@ -49,29 +52,61 @@ def evaluate(teacher, student, alignment, onset_errors, duration_errors,
     vib_s_rate, vib_s_ext = vibrato_metrics(student["f0"], student["time"])
 
     intonation_score = clamp(100.0 - (p_mean / 1.5 if np.isfinite(p_mean) else 100.0))
-    rhythm_score = clamp(np.nanmean([
-        100.0 - onset_mae * 1000.0 / 5.0 if np.isfinite(onset_mae) else np.nan,
-        100.0 - dur_mae * 1000.0 / 7.0 if np.isfinite(dur_mae) else np.nan,
-        100.0 - tempo_diff * 2.0 if np.isfinite(tempo_diff) else np.nan,
-    ]))
-    attack_score = clamp(np.nanmean([
-        100.0 - abs(s_rise - t_rise) * 1000.0 / 3.0 if np.isfinite(s_rise) and np.isfinite(t_rise) else np.nan,
-        100.0 - abs(s_gain - t_gain) * 8.0 if np.isfinite(s_gain) and np.isfinite(t_gain) else np.nan,
-    ]))
-    breath_score = clamp(np.nanmean([
-        100.0 - abs(vr_diff) * 250.0 if np.isfinite(vr_diff) else np.nan,
-        100.0 - abs(safe_mean(student["silent_gaps"]) - safe_mean(teacher["silent_gaps"])) * 100.0,
-        100.0 - max(0.0, -hnr_diff) * 4.0 if np.isfinite(hnr_diff) else np.nan,
-    ]))
-    voice_closure_score = clamp(np.nanmean([
-        100.0 - abs(vr_diff) * 300.0 if np.isfinite(vr_diff) else np.nan,
-        100.0 - abs(student["jitter"] - teacher["jitter"]) * 6000.0,
-        100.0 - abs(student["shimmer"] - teacher["shimmer"]) * 900.0,
-        100.0 - abs(hnr_diff) * 2.0 if np.isfinite(hnr_diff) else np.nan,
-    ]))
+    rhythm_score = clamp(
+        np.nanmean(
+            [
+                100.0 - onset_mae * 1000.0 / 5.0 if np.isfinite(onset_mae) else np.nan,
+                100.0 - dur_mae * 1000.0 / 7.0 if np.isfinite(dur_mae) else np.nan,
+                100.0 - tempo_diff * 2.0 if np.isfinite(tempo_diff) else np.nan,
+            ]
+        )
+    )
+    attack_score = clamp(
+        np.nanmean(
+            [
+                (
+                    100.0 - abs(s_rise - t_rise) * 1000.0 / 3.0
+                    if np.isfinite(s_rise) and np.isfinite(t_rise)
+                    else np.nan
+                ),
+                (
+                    100.0 - abs(s_gain - t_gain) * 8.0
+                    if np.isfinite(s_gain) and np.isfinite(t_gain)
+                    else np.nan
+                ),
+            ]
+        )
+    )
+    breath_score = clamp(
+        np.nanmean(
+            [
+                100.0 - abs(vr_diff) * 250.0 if np.isfinite(vr_diff) else np.nan,
+                100.0
+                - abs(
+                    safe_mean(student["silent_gaps"])
+                    - safe_mean(teacher["silent_gaps"])
+                )
+                * 100.0,
+                100.0 - max(0.0, -hnr_diff) * 4.0 if np.isfinite(hnr_diff) else np.nan,
+            ]
+        )
+    )
+    voice_closure_score = clamp(
+        np.nanmean(
+            [
+                100.0 - abs(vr_diff) * 300.0 if np.isfinite(vr_diff) else np.nan,
+                100.0 - abs(student["jitter"] - teacher["jitter"]) * 6000.0,
+                100.0 - abs(student["shimmer"] - teacher["shimmer"]) * 900.0,
+                100.0 - abs(hnr_diff) * 2.0 if np.isfinite(hnr_diff) else np.nan,
+            ]
+        )
+    )
     overall_score = clamp(
-        0.40 * intonation_score + 0.25 * rhythm_score +
-        0.15 * voice_closure_score + 0.10 * attack_score + 0.10 * breath_score
+        0.40 * intonation_score
+        + 0.25 * rhythm_score
+        + 0.15 * voice_closure_score
+        + 0.10 * attack_score
+        + 0.10 * breath_score
     )
 
     alpha_diff = student["alpha_ratio_db"] - teacher["alpha_ratio_db"]
@@ -138,6 +173,7 @@ def evaluate(teacher, student, alignment, onset_errors, duration_errors,
 # Recommendation flags
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def build_flags(teacher, student, metrics):
     flags = []
     m = metrics
@@ -185,9 +221,16 @@ def build_flags(teacher, student, metrics):
                 "(belt-like качество)."
             )
     if np.isfinite(m["alpha_ratio_diff_db"]) and abs(m["alpha_ratio_diff_db"]) > 4:
-        d = "ярче (больше twang/мetal)" if m["alpha_ratio_diff_db"] > 0 else "темнее (меньше яркости)"
+        d = (
+            "ярче (больше twang/мetal)"
+            if m["alpha_ratio_diff_db"] > 0
+            else "темнее (меньше яркости)"
+        )
         flags.append(f"Тембр (alpha ratio): голос ученика {d}, чем у учителя.")
-    if np.isfinite(m["singer_formant_diff_pct"]) and abs(m["singer_formant_diff_pct"]) > 1.5:
+    if (
+        np.isfinite(m["singer_formant_diff_pct"])
+        and abs(m["singer_formant_diff_pct"]) > 1.5
+    ):
         d = "больше" if m["singer_formant_diff_pct"] > 0 else "меньше"
         flags.append(
             f"Singer's formant: у ученика {d} энергии в зоне 2500–3500 Hz "
@@ -199,6 +242,7 @@ def build_flags(teacher, student, metrics):
 # ─────────────────────────────────────────────────────────────────────────────
 # Text report (for LLM input)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def build_text_report(teacher_path, student_path, teacher, student, alignment, metrics):
     flags = build_flags(teacher, student, metrics)

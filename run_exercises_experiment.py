@@ -4,6 +4,7 @@
 For each exercise type, runs analyze.py logic (no LLM) and prints a
 structured metrics table. Also compares original alignment vs fixed alignment.
 """
+
 from __future__ import annotations
 
 import json
@@ -16,21 +17,21 @@ warnings.filterwarnings("ignore")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 os.environ.setdefault("NUMBA_CACHE_DIR", "/tmp/numba_cache")
 
-import numpy as np
+import numpy as np  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent))
-from vocal_analysis import (
+from vocal_analysis import (  # noqa: E402
     align_by_pitch,
     attack_metrics,
     build_flags,
+    build_pedagogical_brief,
+    build_rule_based_feedback,
     build_text_report,
     evaluate,
     extract_features,
-    build_pedagogical_brief,
-    build_rule_based_feedback,
     generate_feedback,
 )
-from vocal_analysis.utils import fmt, OLLAMA_CHAT_URL, OLLAMA_MODEL
+from vocal_analysis.utils import OLLAMA_CHAT_URL, OLLAMA_MODEL, fmt  # noqa: E402
 
 EXERCISES_DIR = Path(__file__).parent / "exercises_unpacked" / "Упражнения примеры "
 REPORTS_DIR = Path(__file__).parent / "reports_exercises"
@@ -39,8 +40,8 @@ REPORTS_DIR.mkdir(exist_ok=True)
 # Map exercise name → teacher file
 EXERCISES = {
     "Фальцет": "Фальцет да.m4a",
-    "Спич":    "Спич да.m4a",
-    "СОБ":     "СОБ да.m4a",
+    "Спич": "Спич да.m4a",
+    "СОБ": "СОБ да.m4a",
 }
 
 
@@ -71,11 +72,22 @@ def run_pair(
         else np.array([])
     )
 
-    teacher_attacks = attack_metrics(teacher["time"], teacher["intensity"], teacher["onsets"])
-    student_attacks = attack_metrics(student["time"], student["intensity"], student["onsets"])
+    teacher_attacks = attack_metrics(
+        teacher["time"], teacher["intensity"], teacher["onsets"]
+    )
+    student_attacks = attack_metrics(
+        student["time"], student["intensity"], student["onsets"]
+    )
 
-    metrics = evaluate(teacher, student, alignment, onset_errors, duration_errors,
-                       teacher_attacks, student_attacks)
+    metrics = evaluate(
+        teacher,
+        student,
+        alignment,
+        onset_errors,
+        duration_errors,
+        teacher_attacks,
+        student_attacks,
+    )
     metrics["dtw_distance"] = alignment["dtw_distance"]
 
     flags = build_flags(teacher, student, metrics)
@@ -83,8 +95,12 @@ def run_pair(
     feedback = None
     if with_llm:
         text_report = build_text_report(
-            str(teacher_path), str(student_path),
-            teacher, student, alignment, metrics,
+            str(teacher_path),
+            str(student_path),
+            teacher,
+            student,
+            alignment,
+            metrics,
         )
         pedagogical_brief = build_pedagogical_brief(metrics, flags)
         try:
@@ -142,8 +158,11 @@ def print_table(results: list[dict]) -> None:
 
 def main() -> None:
     import argparse
+
     ap = argparse.ArgumentParser()
-    ap.add_argument("--llm", action="store_true", help="Generate LLM feedback for each pair")
+    ap.add_argument(
+        "--llm", action="store_true", help="Generate LLM feedback for each pair"
+    )
     ap.add_argument("--model", default=OLLAMA_MODEL)
     ap.add_argument("--ollama-url", default=OLLAMA_CHAT_URL)
     args = ap.parse_args()
@@ -158,7 +177,8 @@ def main() -> None:
 
         # Find all 'нет' files for this exercise
         error_files = sorted(
-            p for p in EXERCISES_DIR.iterdir()
+            p
+            for p in EXERCISES_DIR.iterdir()
             if p.name.lower().startswith(ex_name.lower()) and "нет" in p.name
         )
 
@@ -173,8 +193,12 @@ def main() -> None:
 
             try:
                 result = run_pair(
-                    teacher_path, student_path, label,
-                    with_llm=args.llm, llm_model=args.model, llm_url=args.ollama_url,
+                    teacher_path,
+                    student_path,
+                    label,
+                    with_llm=args.llm,
+                    llm_model=args.model,
+                    llm_url=args.ollama_url,
                 )
                 all_results.append(result)
                 print(f"OK  (overall={fmt(result['metrics']['overall_score'],1)})")
@@ -195,13 +219,22 @@ def main() -> None:
     for r in all_results:
         safe_r = {k: v for k, v in r.items() if k not in ("metrics",)}
         safe_r["metrics"] = {
-            k: (float(v) if isinstance(v, (float, np.floating)) and np.isfinite(v) else
-                (None if isinstance(v, (float, np.floating)) else int(v) if isinstance(v, (int, np.integer)) else v))
+            k: (
+                float(v)
+                if isinstance(v, float | np.floating) and np.isfinite(v)
+                else (
+                    None
+                    if isinstance(v, float | np.floating)
+                    else int(v) if isinstance(v, int | np.integer) else v
+                )
+            )
             for k, v in r["metrics"].items()
             if not isinstance(v, np.ndarray)
         }
         safe.append(safe_r)
-    out_json.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
+    out_json.write_text(
+        json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     print(f"\nSaved metrics to {out_json}")
 
 

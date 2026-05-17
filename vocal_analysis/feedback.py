@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import urllib.error
-import math
 import urllib.request
-from typing import Iterable
+from collections.abc import Iterable
 
 from .utils import OLLAMA_CHAT_URL, OLLAMA_MODEL, fmt
 
@@ -160,7 +160,8 @@ def _has_closure_warning(metrics: dict) -> bool:
         or (
             _finite(metrics.get("h1h2_mean_student_db"))
             and _finite(metrics.get("h1h2_mean_teacher_db"))
-            and abs(metrics["h1h2_mean_student_db"] - metrics["h1h2_mean_teacher_db"]) > 4
+            and abs(metrics["h1h2_mean_student_db"] - metrics["h1h2_mean_teacher_db"])
+            > 4
         )
         or (
             _finite(metrics.get("cpp_mean_student"))
@@ -182,81 +183,119 @@ def _select_strengths(metrics: dict) -> list[str]:
         if len(strengths) == 3:
             break
     if len(strengths) < 2:
-        for title, key, score, details in rows:
-            if title == "Смыкание и голосовой контроль" and _has_closure_warning(metrics):
+        for title, key, _score, details in rows:
+            if title == "Смыкание и голосовой контроль" and _has_closure_warning(
+                metrics
+            ):
                 continue
             candidate = _metric_line(title, key, details, metrics)
             if candidate not in strengths:
                 strengths.append(candidate)
             if len(strengths) == 2:
                 break
-    return strengths or ["- Стабильность выполнения: данных недостаточно для уверенного вывода, поэтому фокус лучше держать на аккуратном повторении эталона."]
+    return strengths or [
+        "- Стабильность выполнения: данных недостаточно для уверенного вывода, поэтому фокус лучше держать на аккуратном повторении эталона."
+    ]
 
 
 def _select_growth_zones(metrics: dict, flags: Iterable[str]) -> list[str]:
     zones: list[tuple[int, str]] = []
     flag_text = "\n".join(flags).lower()
 
-    if metrics.get("rhythm_score", 100) < 75 or "ритм" in flag_text or "длительности" in flag_text:
-        zones.append((
-            10,
-            "- **Ритм и длительности**: вступления и удержание нот расходятся с эталоном "
-            f"(onset MAE {_num(metrics.get('onset_mae_ms'), 0)} мс, duration MAE {_num(metrics.get('duration_mae_ms'), 0)} мс) "
-            "→ фраза может звучать собранной по высоте, но не совпадать с пульсом упражнения → тренировать входы под счёт и одинаковую длину нот.",
-        ))
+    if (
+        metrics.get("rhythm_score", 100) < 75
+        or "ритм" in flag_text
+        or "длительности" in flag_text
+    ):
+        zones.append(
+            (
+                10,
+                "- **Ритм и длительности**: вступления и удержание нот расходятся с эталоном "
+                f"(onset MAE {_num(metrics.get('onset_mae_ms'), 0)} мс, duration MAE {_num(metrics.get('duration_mae_ms'), 0)} мс) "
+                "→ фраза может звучать собранной по высоте, но не совпадать с пульсом упражнения → тренировать входы под счёт и одинаковую длину нот.",
+            )
+        )
 
-    if metrics.get("intonation_score", 100) < 80 or metrics.get("pitch_mean_abs_cents", 0) > 35:
+    if (
+        metrics.get("intonation_score", 100) < 80
+        or metrics.get("pitch_mean_abs_cents", 0) > 35
+    ):
         direction = "выше" if metrics.get("pitch_bias_cents", 0) > 0 else "ниже"
-        zones.append((
-            9,
-            "- **Интонация**: среднее отклонение высоты "
-            f"{_num(metrics.get('pitch_mean_abs_cents'))} центов, общий сдвиг {direction} эталона "
-            "→ отдельные ноты могут звучать слегка не в центре → тренировать медленное попадание в целевую высоту и удержание без сползания.",
-        ))
+        zones.append(
+            (
+                9,
+                "- **Интонация**: среднее отклонение высоты "
+                f"{_num(metrics.get('pitch_mean_abs_cents'))} центов, общий сдвиг {direction} эталона "
+                "→ отдельные ноты могут звучать слегка не в центре → тренировать медленное попадание в целевую высоту и удержание без сползания.",
+            )
+        )
 
     if metrics.get("attack_score", 100) < 78 or "атака" in flag_text:
-        zones.append((
-            8,
-            "- **Атака звука**: начало нот отличается от эталона "
-            f"(у ученика подъём громкости {_num(metrics.get('attack_rise_student_ms'), 0)} мс против {_num(metrics.get('attack_rise_teacher_ms'), 0)} мс у эталона) "
-            "→ вход может восприниматься слишком резким или, наоборот, запаздывающим → тренировать одинаковое мягкое начало каждой ноты.",
-        ))
+        zones.append(
+            (
+                8,
+                "- **Атака звука**: начало нот отличается от эталона "
+                f"(у ученика подъём громкости {_num(metrics.get('attack_rise_student_ms'), 0)} мс против {_num(metrics.get('attack_rise_teacher_ms'), 0)} мс у эталона) "
+                "→ вход может восприниматься слишком резким или, наоборот, запаздывающим → тренировать одинаковое мягкое начало каждой ноты.",
+            )
+        )
 
     closure_reasons = []
     if _finite(metrics.get("hnr_diff_db")) and metrics["hnr_diff_db"] < -2:
-        closure_reasons.append(f"HNR ниже эталона на {_num(abs(metrics['hnr_diff_db']))} дБ")
-    if _finite(metrics.get("cpp_mean_student")) and _finite(metrics.get("cpp_mean_teacher")):
+        closure_reasons.append(
+            f"HNR ниже эталона на {_num(abs(metrics['hnr_diff_db']))} дБ"
+        )
+    if _finite(metrics.get("cpp_mean_student")) and _finite(
+        metrics.get("cpp_mean_teacher")
+    ):
         cpp_delta = metrics["cpp_mean_student"] - metrics["cpp_mean_teacher"]
         if cpp_delta < -0.15:
             closure_reasons.append(f"CPP ниже эталона на {_num(abs(cpp_delta))} дБ")
-    if _finite(metrics.get("h1h2_mean_student_db")) and _finite(metrics.get("h1h2_mean_teacher_db")):
+    if _finite(metrics.get("h1h2_mean_student_db")) and _finite(
+        metrics.get("h1h2_mean_teacher_db")
+    ):
         h_delta = metrics["h1h2_mean_student_db"] - metrics["h1h2_mean_teacher_db"]
         if abs(h_delta) > 4:
-            closure_reasons.append(f"H1-H2 отличается от эталона на {_num(abs(h_delta))} дБ")
+            closure_reasons.append(
+                f"H1-H2 отличается от эталона на {_num(abs(h_delta))} дБ"
+            )
     if metrics.get("voice_closure_score", 100) < 82 or closure_reasons:
-        zones.append((
-            7,
-            "- **Чистота тона и смыкание**: "
-            + (", ".join(closure_reasons) if closure_reasons else f"оценка смыкания {_num(metrics.get('voice_closure_score'))}/100")
-            + " → звук может становиться менее собранным, с лишним воздухом или лишним нажимом → искать более ровное, экономное смыкание без давления.",
-        ))
+        zones.append(
+            (
+                7,
+                "- **Чистота тона и смыкание**: "
+                + (
+                    ", ".join(closure_reasons)
+                    if closure_reasons
+                    else f"оценка смыкания {_num(metrics.get('voice_closure_score'))}/100"
+                )
+                + " → звук может становиться менее собранным, с лишним воздухом или лишним нажимом → искать более ровное, экономное смыкание без давления.",
+            )
+        )
 
     if metrics.get("breath_score", 100) < 78:
-        zones.append((
-            6,
-            "- **Дыхание и поддержка**: доля звучащих участков и паузы отличаются от эталона "
-            f"(voiced ratio diff {_num(metrics.get('voiced_ratio_diff'), 3)}) "
-            "→ фраза может терять непрерывность или опору → тренировать распределение воздуха на всю длительность звука.",
-        ))
+        zones.append(
+            (
+                6,
+                "- **Дыхание и поддержка**: доля звучащих участков и паузы отличаются от эталона "
+                f"(voiced ratio diff {_num(metrics.get('voiced_ratio_diff'), 3)}) "
+                "→ фраза может терять непрерывность или опору → тренировать распределение воздуха на всю длительность звука.",
+            )
+        )
 
-    if _finite(metrics.get("alpha_ratio_diff_db")) and abs(metrics["alpha_ratio_diff_db"]) > 3.5:
+    if (
+        _finite(metrics.get("alpha_ratio_diff_db"))
+        and abs(metrics["alpha_ratio_diff_db"]) > 3.5
+    ):
         tone = "ярче" if metrics["alpha_ratio_diff_db"] > 0 else "темнее"
-        zones.append((
-            5,
-            "- **Тембровая яркость**: alpha ratio показывает, что голос ученика "
-            f"{tone} эталона на {_num(abs(metrics['alpha_ratio_diff_db']))} дБ "
-            "→ тембр может отличаться по звонкости и собранности → подбирать яркость постепенно, не меняя высоту и ритм.",
-        ))
+        zones.append(
+            (
+                5,
+                "- **Тембровая яркость**: alpha ratio показывает, что голос ученика "
+                f"{tone} эталона на {_num(abs(metrics['alpha_ratio_diff_db']))} дБ "
+                "→ тембр может отличаться по звонкости и собранности → подбирать яркость постепенно, не меняя высоту и ритм.",
+            )
+        )
 
     zones.sort(key=lambda item: item[0], reverse=True)
     selected = [text for _, text in zones[:4]]
@@ -271,59 +310,73 @@ def _select_exercises(metrics: dict) -> list[str]:
     exercises: list[tuple[int, str]] = []
 
     if metrics.get("rhythm_score", 100) < 80:
-        exercises.append((
-            10,
-            "1. **Ритм под счёт**\n"
-            "   - **Цель:** выровнять вступления и длительности нот.\n"
-            "   - **Как делать:** включи метроном в темпе эталона, сначала проговори ритм на 'та' без пения, затем спой упражнение на одной удобной ноте, сохраняя те же входы. Делай 4–5 коротких повторов, не ускоряясь.\n"
-            "   - **Самопроверка:** начало каждой ноты должно совпадать с долей; если запись наложить на эталон, основные входы не должны заметно уезжать.",
-        ))
+        exercises.append(
+            (
+                10,
+                "1. **Ритм под счёт**\n"
+                "   - **Цель:** выровнять вступления и длительности нот.\n"
+                "   - **Как делать:** включи метроном в темпе эталона, сначала проговори ритм на 'та' без пения, затем спой упражнение на одной удобной ноте, сохраняя те же входы. Делай 4–5 коротких повторов, не ускоряясь.\n"
+                "   - **Самопроверка:** начало каждой ноты должно совпадать с долей; если запись наложить на эталон, основные входы не должны заметно уезжать.",
+            )
+        )
 
     if metrics.get("attack_score", 100) < 85:
-        exercises.append((
-            8,
-            "2. **Единая мягкая атака**\n"
-            "   - **Цель:** сделать начало каждой ноты предсказуемым и одинаковым.\n"
-            "   - **Как делать:** на удобной высоте пой короткие слоги 'ма-ма-ма' или 'на-на-на': перед каждым звуком ощущай спокойный вдох, затем начинай звук без толчка горлом и без лишнего воздуха.\n"
-            "   - **Самопроверка:** первые доли нот не должны звучать как хлопок, скрип или запоздалое 'подъезжание'; громкость набирается ровно.",
-        ))
+        exercises.append(
+            (
+                8,
+                "2. **Единая мягкая атака**\n"
+                "   - **Цель:** сделать начало каждой ноты предсказуемым и одинаковым.\n"
+                "   - **Как делать:** на удобной высоте пой короткие слоги 'ма-ма-ма' или 'на-на-на': перед каждым звуком ощущай спокойный вдох, затем начинай звук без толчка горлом и без лишнего воздуха.\n"
+                "   - **Самопроверка:** первые доли нот не должны звучать как хлопок, скрип или запоздалое 'подъезжание'; громкость набирается ровно.",
+            )
+        )
 
-    closure_needed = metrics.get("voice_closure_score", 100) < 86 or _has_closure_warning(metrics)
+    closure_needed = metrics.get(
+        "voice_closure_score", 100
+    ) < 86 or _has_closure_warning(metrics)
     if closure_needed:
-        exercises.append((
-            7,
-            "3. **Чистый тон без лишнего воздуха**\n"
-            "   - **Цель:** найти более собранное смыкание без зажима.\n"
-            "   - **Как делать:** спой тихое 'ммм' 2–3 секунды, затем открой в гласную 'ма', сохраняя то же ощущение собранного, спокойного звука. Повтори 5 раз, каждый раз останавливаясь до усталости.\n"
-            "   - **Самопроверка:** звук не должен становиться шёпотным, но и не должен давить; ощущение — устойчивый тон на небольшом расходе воздуха.",
-        ))
+        exercises.append(
+            (
+                7,
+                "3. **Чистый тон без лишнего воздуха**\n"
+                "   - **Цель:** найти более собранное смыкание без зажима.\n"
+                "   - **Как делать:** спой тихое 'ммм' 2–3 секунды, затем открой в гласную 'ма', сохраняя то же ощущение собранного, спокойного звука. Повтори 5 раз, каждый раз останавливаясь до усталости.\n"
+                "   - **Самопроверка:** звук не должен становиться шёпотным, но и не должен давить; ощущение — устойчивый тон на небольшом расходе воздуха.",
+            )
+        )
 
     if metrics.get("breath_score", 100) < 82:
-        exercises.append((
-            6,
-            "4. **Распределение воздуха на фразу**\n"
-            "   - **Цель:** удерживать звук ровно до конца ноты и не терять поддержку.\n"
-            "   - **Как делать:** на одном выдохе спой 4 одинаковые короткие ноты, затем одну длинную. Следи, чтобы последняя нота не проваливалась по громкости и не становилась воздушной.\n"
-            "   - **Самопроверка:** в конце фразы качество звука остаётся таким же, как в начале.",
-        ))
+        exercises.append(
+            (
+                6,
+                "4. **Распределение воздуха на фразу**\n"
+                "   - **Цель:** удерживать звук ровно до конца ноты и не терять поддержку.\n"
+                "   - **Как делать:** на одном выдохе спой 4 одинаковые короткие ноты, затем одну длинную. Следи, чтобы последняя нота не проваливалась по громкости и не становилась воздушной.\n"
+                "   - **Самопроверка:** в конце фразы качество звука остаётся таким же, как в начале.",
+            )
+        )
 
     if metrics.get("intonation_score", 100) < 85:
-        exercises.append((
-            5,
-            "5. **Медленное попадание в высоту**\n"
-            "   - **Цель:** точнее попадать в центр каждой ноты.\n"
-            "   - **Как делать:** выбери 2–3 проблемных перехода, спой их в два раза медленнее, сначала на 'у', затем на исходной гласной. После каждого повтора сравни с эталоном.\n"
-            "   - **Самопроверка:** нота начинается сразу в нужной высоте, без заметного подъезда снизу или сверху.",
-        ))
+        exercises.append(
+            (
+                5,
+                "5. **Медленное попадание в высоту**\n"
+                "   - **Цель:** точнее попадать в центр каждой ноты.\n"
+                "   - **Как делать:** выбери 2–3 проблемных перехода, спой их в два раза медленнее, сначала на 'у', затем на исходной гласной. После каждого повтора сравни с эталоном.\n"
+                "   - **Самопроверка:** нота начинается сразу в нужной высоте, без заметного подъезда снизу или сверху.",
+            )
+        )
 
     if len(exercises) < 3:
-        exercises.append((
-            1,
-            "6. **Контрольное повторение с эталоном**\n"
-            "   - **Цель:** связать интонацию, ритм и качество звука в одном исполнении.\n"
-            "   - **Как делать:** послушай эталон один раз, затем спой вместе с ним вполголоса, затем отдельно запиши самостоятельный дубль.\n"
-            "   - **Самопроверка:** самостоятельный дубль должен сохранять те же входы, длительности и общий характер звука.",
-        ))
+        exercises.append(
+            (
+                1,
+                "6. **Контрольное повторение с эталоном**\n"
+                "   - **Цель:** связать интонацию, ритм и качество звука в одном исполнении.\n"
+                "   - **Как делать:** послушай эталон один раз, затем спой вместе с ним вполголоса, затем отдельно запиши самостоятельный дубль.\n"
+                "   - **Самопроверка:** самостоятельный дубль должен сохранять те же входы, длительности и общий характер звука.",
+            )
+        )
 
     exercises.sort(key=lambda item: item[0], reverse=True)
     selected = [text for _, text in exercises[:3]]
@@ -387,7 +440,9 @@ def build_pedagogical_brief(metrics: dict, flags: Iterable[str] | None = None) -
     if flags:
         lines.extend(f"- {flag}" for flag in flags[:6])
     else:
-        lines.append("- Критичных отклонений не найдено; акцент на закреплении стабильности.")
+        lines.append(
+            "- Критичных отклонений не найдено; акцент на закреплении стабильности."
+        )
     return "\n".join(lines)
 
 
@@ -407,7 +462,11 @@ def build_rule_based_feedback(metrics: dict, flags: Iterable[str] | None = None)
     }
     raw_strength = strengths[0].split(":", 1)[0].lstrip("- ") if strengths else ""
     top_strength = strength_names.get(raw_strength, "отдельные сильные навыки")
-    main_growth = growth[0].split("**", 2)[1] if growth and "**" in growth[0] else "стабильность выполнения"
+    main_growth = (
+        growth[0].split("**", 2)[1]
+        if growth and "**" in growth[0]
+        else "стабильность выполнения"
+    )
 
     lines = [
         "### 1. Общая картина",
@@ -448,13 +507,15 @@ def _strip_thinking(text: str) -> str:
 
     hit = re.search(r"(#{1,3}\s*)?1\.\s*\**\s*Общая картина", text, flags=re.IGNORECASE)
     if hit:
-        text = text[hit.start():]
+        text = text[hit.start() :]
 
     # If the model repeats the first heading several times while drafting, keep
     # the last occurrence because it is usually the completed answer.
-    starts = list(re.finditer(r"(?im)^\s*(?:#{1,3}\s*)?1\.\s*\**\s*Общая картина.*$", text))
+    starts = list(
+        re.finditer(r"(?im)^\s*(?:#{1,3}\s*)?1\.\s*\**\s*Общая картина.*$", text)
+    )
     if len(starts) > 1:
-        text = text[starts[-1].start():]
+        text = text[starts[-1].start() :]
 
     # Normalize top-level section headings to the expected form.
     for heading in _EXPECTED_HEADINGS:
@@ -484,7 +545,8 @@ def generate_feedback(
             {
                 "role": "user",
                 "content": FEEDBACK_USER_TEMPLATE.format(
-                    pedagogical_brief=pedagogical_brief or "Педагогический профиль не передан; используй технический отчёт осторожно.",
+                    pedagogical_brief=pedagogical_brief
+                    or "Педагогический профиль не передан; используй технический отчёт осторожно.",
                     report=text_report,
                 ),
             },

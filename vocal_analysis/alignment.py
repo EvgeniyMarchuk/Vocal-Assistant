@@ -87,9 +87,13 @@ def align_by_pitch(
         s_int = (si - lo) / (hi - lo) * 100.0
 
     cost = _build_cost_matrix(
-        t_cents, s_cents, t_voiced, s_voiced,
+        t_cents,
+        s_cents,
+        t_voiced,
+        s_voiced,
         intensity_weight=intensity_weight,
-        t_intensity=t_int, s_intensity=s_int,
+        t_intensity=t_int,
+        s_intensity=s_int,
     )
 
     _, wp = librosa.sequence.dtw(C=cost)

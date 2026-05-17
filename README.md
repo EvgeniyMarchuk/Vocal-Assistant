@@ -3,6 +3,7 @@
 Система анализа вокальных упражнений и генерации педагогической обратной связи. Разработана в рамках дипломной работы.
 
 Проект состоит из трёх независимых компонентов:
+
 - **Telegram-бот** — приём голосовых сообщений и конвертация аудио
 - **Анализ голоса** — акустический анализ пары «эталон / ученик» и генерация фидбэка через LLM
 - **ML-эксперименты** — исследование SSL-моделей (BEATs, Wav2Vec2, WavLM, Whisper) на датасете VocalSet
@@ -86,14 +87,14 @@ python3 analyze.py \
     --model qwen2.5:7b
 ```
 
-| Флаг | По умолчанию | Описание |
-|------|-------------|----------|
-| `--teacher` | — | Путь к WAV эталона (обязательно) |
-| `--student` | — | Путь к WAV ученика (обязательно) |
-| `--out` | `./reports` | Папка для сохранения отчётов |
-| `--model` | `qwen3:4b` | Модель Ollama |
-| `--ollama-url` | `http://127.0.0.1:11434/api/chat` | Адрес Ollama API |
-| `--no-feedback` | — | Пропустить генерацию LLM-фидбэка |
+| Флаг            | По умолчанию                      | Описание                         |
+| --------------- | --------------------------------- | -------------------------------- |
+| `--teacher`     | —                                 | Путь к WAV эталона (обязательно) |
+| `--student`     | —                                 | Путь к WAV ученика (обязательно) |
+| `--out`         | `./reports`                       | Папка для сохранения отчётов     |
+| `--model`       | `qwen3:4b`                        | Модель Ollama                    |
+| `--ollama-url`  | `http://127.0.0.1:11434/api/chat` | Адрес Ollama API                 |
+| `--no-feedback` | —                                 | Пропустить генерацию LLM-фидбэка |
 
 ### Структура отчёта
 
@@ -123,18 +124,19 @@ reports/
 
 ### Что анализируется
 
-| Категория | Метрики |
-|-----------|---------|
-| **Интонация** | DTW-выравнивание F0, средняя ошибка в центах, % нот в ±25 / ±50 / ±100¢ |
-| **Ритм** | MAE вступлений (мс), MAE длительностей, расхождение темпа |
-| **Атака** | Время нарастания (мс), прирост громкости (дБ) |
-| **Дыхание** | Voiced ratio, длина пауз |
-| **Смыкание** | HNR, jitter, shimmer |
-| **Estill-признаки** | CPP, H1−H2, Alpha ratio, Singer's formant, Spectral tilt |
+| Категория           | Метрики                                                                 |
+| ------------------- | ----------------------------------------------------------------------- |
+| **Интонация**       | DTW-выравнивание F0, средняя ошибка в центах, % нот в ±25 / ±50 / ±100¢ |
+| **Ритм**            | MAE вступлений (мс), MAE длительностей, расхождение темпа               |
+| **Атака**           | Время нарастания (мс), прирост громкости (дБ)                           |
+| **Дыхание**         | Voiced ratio, длина пауз                                                |
+| **Смыкание**        | HNR, jitter, shimmer                                                    |
+| **Estill-признаки** | CPP, H1−H2, Alpha ratio, Singer's formant, Spectral tilt                |
 
 ### Стиль графиков
 
 Все PNG используют единую палитру и подписи на русском с единицами в скобках:
+
 - **Эталон** — глубокий синий (`#2E5C9E`), **Ученик** — коралловый (`#E26A4F`).
 - На графике pitch-контура ось Y подписана нотами (например, `A4`), фоном — полутоновая сетка.
 - На графике pitch-error фон поделён на три зоны: зелёная ±25¢ («хорошо»), жёлтая ±50¢ («приемлемо»), красная ±100¢ («плохо»); линии MAE и медианы подписаны.
@@ -178,13 +180,40 @@ pip install torch torchaudio transformers datasets jupyter
 jupyter notebook MainExperiments/
 ```
 
-| Ноутбук | Модель | Подход |
-|---------|--------|--------|
-| `DeformableCNN_VocalSet.ipynb` | DeformableCNN | Baseline |
-| `Wav2Vec2_AnnotatedVocalSet.ipynb` | Wav2Vec2 | Full / LoRA fine-tuning |
-| `WavLM_AnnotatedVocalSet.ipynb` | WavLM | Full / LoRA fine-tuning |
-| `Whisper_AnnotatedVocalSet.ipynb` | Whisper | Full fine-tuning |
-| `BEATs/BEATs_AnnotatedVocalSet_FineTuning.ipynb` | BEATs | Full fine-tuning |
+---
+
+## Качество кода и MLOps-style workflow
+
+В репозитории настроены единые инструменты форматирования и проверок:
+
+- **Black** — автоформатирование Python-кода.
+- **isort** — сортировка импортов в профиле Black.
+- **Ruff** — быстрый линтинг и безопасные автофиксы.
+- **Prettier** — форматирование Markdown / YAML / JSON.
+- **pre-commit** — запуск всех проверок перед коммитом.
+
+Установка dev-инструментов:
+
+```bash
+pip install -r requirements-dev.txt
+pre-commit install
+```
+
+Ручной прогон всех хуков:
+
+```bash
+pre-commit run --all-files
+```
+
+Конфигурация инструментов находится в `pyproject.toml`, `.pre-commit-config.yaml`, `.prettierrc.json` и `.prettierignore`.
+
+| Ноутбук                                          | Модель        | Подход                  |
+| ------------------------------------------------ | ------------- | ----------------------- |
+| `DeformableCNN_VocalSet.ipynb`                   | DeformableCNN | Baseline                |
+| `Wav2Vec2_AnnotatedVocalSet.ipynb`               | Wav2Vec2      | Full / LoRA fine-tuning |
+| `WavLM_AnnotatedVocalSet.ipynb`                  | WavLM         | Full / LoRA fine-tuning |
+| `Whisper_AnnotatedVocalSet.ipynb`                | Whisper       | Full fine-tuning        |
+| `BEATs/BEATs_AnnotatedVocalSet_FineTuning.ipynb` | BEATs         | Full fine-tuning        |
 
 Результаты обучения (метрики, confusion matrix) сохраняются в `MainExperiments/outputs/<model_name>/`.
 
@@ -192,11 +221,11 @@ jupyter notebook MainExperiments/
 
 ## Переменные окружения
 
-| Переменная | Компонент | Значение по умолчанию |
-|-----------|-----------|----------------------|
-| `TELEGRAM_BOT_TOKEN` | bot | — (обязательно) |
-| `VOCAL_FEEDBACK_MODEL` | анализ | `qwen3:4b` |
-| `OLLAMA_CHAT_URL` | анализ | `http://127.0.0.1:11434/api/chat` |
+| Переменная             | Компонент | Значение по умолчанию             |
+| ---------------------- | --------- | --------------------------------- |
+| `TELEGRAM_BOT_TOKEN`   | bot       | — (обязательно)                   |
+| `VOCAL_FEEDBACK_MODEL` | анализ    | `qwen3:4b`                        |
+| `OLLAMA_CHAT_URL`      | анализ    | `http://127.0.0.1:11434/api/chat` |
 
 ---
 

@@ -15,6 +15,7 @@
     - ``report.json``          — машиночитаемые метрики
     - ``img/``                 — PNG-визуализации (общие для обоих .md)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -56,14 +57,22 @@ def main() -> None:
     )
     parser.add_argument("--teacher", required=True, help="Путь к WAV эталона")
     parser.add_argument("--student", required=True, help="Путь к WAV ученика")
-    parser.add_argument("--out", default="./reports",
-                        help="Директория для отчётов (по умолчанию: ./reports)")
-    parser.add_argument("--model", default=OLLAMA_MODEL,
-                        help=f"Модель Ollama (по умолчанию: {OLLAMA_MODEL})")
-    parser.add_argument("--ollama-url", default=OLLAMA_CHAT_URL,
-                        help="Эндпоинт Ollama API")
-    parser.add_argument("--no-feedback", action="store_true",
-                        help="Пропустить генерацию LLM-фидбэка")
+    parser.add_argument(
+        "--out",
+        default="./reports",
+        help="Директория для отчётов (по умолчанию: ./reports)",
+    )
+    parser.add_argument(
+        "--model",
+        default=OLLAMA_MODEL,
+        help=f"Модель Ollama (по умолчанию: {OLLAMA_MODEL})",
+    )
+    parser.add_argument(
+        "--ollama-url", default=OLLAMA_CHAT_URL, help="Эндпоинт Ollama API"
+    )
+    parser.add_argument(
+        "--no-feedback", action="store_true", help="Пропустить генерацию LLM-фидбэка"
+    )
     args = parser.parse_args()
 
     out_dir = Path(args.out)
@@ -90,14 +99,28 @@ def main() -> None:
     # IOI (inter-onset intervals) = spacing between consecutive notes.
     # Duration errors measure whether the student holds notes for the same
     # duration as the teacher, regardless of absolute start time.
-    duration_errors = (np.diff(student["onsets"][:n]) - np.diff(teacher["onsets"][:n])
-                       if n >= 2 else np.array([]))
+    duration_errors = (
+        np.diff(student["onsets"][:n]) - np.diff(teacher["onsets"][:n])
+        if n >= 2
+        else np.array([])
+    )
 
-    teacher_attacks = attack_metrics(teacher["time"], teacher["intensity"], teacher["onsets"])
-    student_attacks = attack_metrics(student["time"], student["intensity"], student["onsets"])
+    teacher_attacks = attack_metrics(
+        teacher["time"], teacher["intensity"], teacher["onsets"]
+    )
+    student_attacks = attack_metrics(
+        student["time"], student["intensity"], student["onsets"]
+    )
 
-    metrics = evaluate(teacher, student, alignment, onset_errors, duration_errors,
-                       teacher_attacks, student_attacks)
+    metrics = evaluate(
+        teacher,
+        student,
+        alignment,
+        onset_errors,
+        duration_errors,
+        teacher_attacks,
+        student_attacks,
+    )
     metrics["dtw_distance"] = alignment["dtw_distance"]
 
     student_md_path, analysis_md_path, json_path, img_dir, _ = build_paths(

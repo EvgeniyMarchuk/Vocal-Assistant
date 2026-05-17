@@ -1,0 +1,120 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vocal-assistant"
+version = "0.1.0"
+description = "Vocal exercise analysis, pedagogical feedback, and ML experiments."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Vocal Assistant contributors" }]
+dependencies = [
+    "fastdtw>=0.3.4",
+    "librosa>=0.10.0",
+    "matplotlib>=3.7.0",
+    "mutagen>=1.47.0",
+    "numpy>=1.23.0",
+    "pandas>=2.0.0",
+    "praat-parselmouth>=0.4.3",
+    "python-telegram-bot>=21.0,<22.0",
+    "scipy>=1.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black[jupyter]>=24.8.0",
+    "isort>=5.13.0",
+    "pre-commit>=3.8.0",
+    "ruff>=0.6.0",
+]
+experiments = [
+    "datasets>=2.20.0",
+    "jupyter>=1.1.0",
+    "torch>=2.2.0",
+    "torchaudio>=2.2.0",
+    "transformers>=4.44.0",
+]
+
+[tool.setuptools]
+packages = ["vocal_analysis"]
+py-modules = ["analyze", "run_exercises_experiment"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+include = "\\.pyi?$"
+extend-exclude = """
+/(
+    \\.git
+  | \\.venv
+  | venv
+  | env
+  | __pycache__
+  | outputs
+  | reports
+  | reports_exercises
+)/
+"""
+
+[tool.isort]
+profile = "black"
+line_length = 88
+py_version = 310
+known_first_party = ["vocal_analysis"]
+skip_gitignore = true
+extend_skip_glob = [
+    "MainExperiments/outputs/*",
+    "reports/*",
+    "reports_exercises/*",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+extend-exclude = [
+    ".venv",
+    "venv",
+    "env",
+    "MainExperiments/outputs",
+    "reports",
+    "reports_exercises",
+]
+
+[tool.ruff.lint]
+select = [
+    "B",
+    "C4",
+    "E",
+    "F",
+    "I",
+    "SIM",
+    "UP",
+    "W",
+]
+ignore = [
+    "E501",  # Formatting is delegated to Black.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"MainExperiments/BEATs/*.py" = [
+    "B008",
+    "B023",
+    "B028",
+    "C408",
+    "E402",
+    "F401",
+    "F841",
+    "SIM102",
+    "SIM105",
+    "SIM108",
+    "UP035",
+    "UP038",
+]
+"vocal_analysis/feedback.py" = ["SIM102"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

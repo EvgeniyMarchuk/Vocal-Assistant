@@ -1,0 +1,4 @@
+black[jupyter]>=24.8.0
+isort>=5.13.0
+pre-commit>=3.8.0
+ruff>=0.6.0

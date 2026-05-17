@@ -3,7 +3,11 @@
 from .alignment import align_by_pitch
 from .evaluation import build_flags, build_text_report, evaluate
 from .features import attack_metrics, extract_features
-from .feedback import build_pedagogical_brief, build_rule_based_feedback, generate_feedback
+from .feedback import (
+    build_pedagogical_brief,
+    build_rule_based_feedback,
+    generate_feedback,
+)
 from .report import (
     build_analysis_data_md,
     build_paths,

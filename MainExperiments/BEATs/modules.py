@@ -9,9 +9,10 @@
 
 import math
 import warnings
+
 import torch
-from torch import Tensor, nn
 import torch.nn.functional as F
+from torch import Tensor, nn
 
 
 class GradMultiply(torch.autograd.Function):
@@ -42,7 +43,7 @@ class SamePad(nn.Module):
 
 class Swish(nn.Module):
     def __init__(self):
-        super(Swish, self).__init__()
+        super().__init__()
         self.act = torch.nn.Sigmoid()
 
     def forward(self, x):
@@ -51,7 +52,7 @@ class Swish(nn.Module):
 
 class GLU_Linear(nn.Module):
     def __init__(self, input_dim, output_dim, glu_type="sigmoid", bias_in_glu=True):
-        super(GLU_Linear, self).__init__()
+        super().__init__()
 
         self.glu_type = glu_type
         self.output_dim = output_dim
@@ -75,9 +76,14 @@ class GLU_Linear(nn.Module):
         x = self.linear(x)
 
         if self.glu_type == "bilinear":
-            x = (x[:, :, 0:self.output_dim] * x[:, :, self.output_dim:self.output_dim * 2])
+            x = (
+                x[:, :, 0 : self.output_dim]
+                * x[:, :, self.output_dim : self.output_dim * 2]
+            )
         else:
-            x = (x[:, :, 0:self.output_dim] * self.glu_act(x[:, :, self.output_dim:self.output_dim * 2]))
+            x = x[:, :, 0 : self.output_dim] * self.glu_act(
+                x[:, :, self.output_dim : self.output_dim * 2]
+            )
 
         return x
 
@@ -102,20 +108,16 @@ def get_activation_fn(activation: str):
     elif activation == "gelu":
         return gelu
     elif activation == "gelu_fast":
-        warnings.warn(
-            "--activation-fn=gelu_fast has been renamed to gelu_accurate"
-        )
+        warnings.warn("--activation-fn=gelu_fast has been renamed to gelu_accurate")
         return gelu_accurate
     elif activation == "gelu_accurate":
         return gelu_accurate
     elif activation == "tanh":
         return torch.tanh
-    elif activation == "linear":
-        return lambda x: x
-    elif activation == "glu":
+    elif activation == "linear" or activation == "glu":
         return lambda x: x
     else:
-        raise RuntimeError("--activation-fn {} not supported".format(activation))
+        raise RuntimeError(f"--activation-fn {activation} not supported")
 
 
 def quant_noise(module, p, block_size):
@@ -216,4 +218,3 @@ def quant_noise(module, p, block_size):
 
     module.register_forward_pre_hook(_forward_pre_hook)
     return module
-

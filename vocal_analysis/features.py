@@ -26,6 +26,7 @@ from .utils import (
 # Onset detection
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def detect_intensity_onsets(
     intensity_time,
     intensity_values,
@@ -85,7 +86,7 @@ def detect_intensity_onsets(
         if pk_val - base < gain_thr or pk_val < act_thr:
             continue
         thr = base + 0.25 * (pk_val - base)
-        local = xs[pre0:peak + 1]
+        local = xs[pre0 : peak + 1]
         above = np.where(local >= thr)[0]
         oi = pre0 + int(above[0]) if above.size else peak
         if onsets and t[oi] - onsets[-1] < min_interval_s:
@@ -101,6 +102,7 @@ def detect_intensity_onsets(
 # Attack metrics
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def attack_metrics(time, intensity, onsets, window_sec=0.18):
     rows = []
     for onset in onsets:
@@ -115,11 +117,13 @@ def attack_metrics(time, intensity, onsets, window_sec=0.18):
         pi = intensity[post]
         reached = np.where(pi >= target)[0]
         rt = float(pt[reached[0]] - onset) if reached.size else np.nan
-        rows.append({
-            "onset_s": float(onset),
-            "attack_gain_db": float(peak - base),
-            "attack_rise_time_s": rt,
-        })
+        rows.append(
+            {
+                "onset_s": float(onset),
+                "attack_gain_db": float(peak - base),
+                "attack_rise_time_s": rt,
+            }
+        )
     return rows
 
 
@@ -127,13 +131,16 @@ def attack_summary(rows):
     if not rows:
         return np.nan, np.nan
     gains = [r["attack_gain_db"] for r in rows if np.isfinite(r["attack_gain_db"])]
-    rises = [r["attack_rise_time_s"] for r in rows if np.isfinite(r["attack_rise_time_s"])]
+    rises = [
+        r["attack_rise_time_s"] for r in rows if np.isfinite(r["attack_rise_time_s"])
+    ]
     return safe_median(rises), safe_median(gains)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Vibrato
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def vibrato_metrics(f0, time):
     valid = np.isfinite(f0)
@@ -153,6 +160,7 @@ def vibrato_metrics(f0, time):
 # ─────────────────────────────────────────────────────────────────────────────
 # Estill-specific features
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def compute_cpp_contour(y, sr, fmin=75, fmax=600, n_fft=2048, hop_length=None):
     """Frame-wise Cepstral Peak Prominence via cepstrum (librosa-based)."""
@@ -176,14 +184,16 @@ def compute_cpp_contour(y, sr, fmin=75, fmax=600, n_fft=2048, hop_length=None):
         peak_abs = q_min + peak_rel
         peak_val = frame[peak_abs]
         qs = np.arange(1, q_max + 1)
-        fs = frame[1:q_max + 1]
+        fs = frame[1 : q_max + 1]
         if qs.size >= 2:
             slope, intercept = np.polyfit(qs, fs, 1)
             trend = slope * peak_abs + intercept
             cpp_vals.append(float(max(0.0, peak_val - trend)))
         else:
             cpp_vals.append(float(max(0.0, peak_val)))
-    times = librosa.frames_to_time(np.arange(len(cpp_vals)), sr=sr, hop_length=hop_length)
+    times = librosa.frames_to_time(
+        np.arange(len(cpp_vals)), sr=sr, hop_length=hop_length
+    )
     return times, np.array(cpp_vals, dtype=float)
 
 
@@ -194,7 +204,9 @@ def compute_h1h2_contour(y, sr, f0, f0_times, n_fft=2048, hop_length=None):
     D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length)
     S = np.abs(D)
     freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
-    frame_times = librosa.frames_to_time(np.arange(S.shape[1]), sr=sr, hop_length=hop_length)
+    frame_times = librosa.frames_to_time(
+        np.arange(S.shape[1]), sr=sr, hop_length=hop_length
+    )
     h1h2 = []
     for fi, t in enumerate(frame_times):
         f0_here = float(np.interp(t, f0_times, np.nan_to_num(f0, nan=0.0)))
@@ -234,7 +246,7 @@ def compute_spectral_features(y, sr, n_fft=4096, hop_length=512):
     alpha_ratio = float(10.0 * np.log10(e_hi / e_lo)) if e_lo > 0 else np.nan
 
     sf_mask = (freqs >= 2500) & (freqs <= 3500)
-    total_e = np.sum(D ** 2)
+    total_e = np.sum(D**2)
     sf_e = np.sum(D[sf_mask] ** 2)
     singer_formant_pct = float(100.0 * sf_e / total_e) if total_e > 0 else np.nan
 
@@ -248,7 +260,9 @@ def compute_spectral_features(y, sr, n_fft=4096, hop_length=512):
     e_lo_t = np.sum(D[lo_mask, :] ** 2, axis=0) + 1e-20
     e_hi_t = np.sum(D[hi_mask, :] ** 2, axis=0) + 1e-20
     alpha_contour = 10.0 * np.log10(e_hi_t / e_lo_t)
-    alpha_times = librosa.frames_to_time(np.arange(D.shape[1]), sr=sr, hop_length=hop_length)
+    alpha_times = librosa.frames_to_time(
+        np.arange(D.shape[1]), sr=sr, hop_length=hop_length
+    )
 
     return {
         "alpha_ratio_db": alpha_ratio,
@@ -265,18 +279,31 @@ def compute_spectral_features(y, sr, n_fft=4096, hop_length=512):
 # Full feature extraction
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _ensure_wav(audio_path: str) -> tuple[str, bool]:
     """Return (wav_path, is_tmp). Converts non-WAV files via ffmpeg."""
     if Path(audio_path).suffix.lower() == ".wav":
         return audio_path, False
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    tmp.close()
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        tmp_path = tmp.name
     subprocess.run(
-        ["ffmpeg", "-y", "-i", audio_path, "-ar", "16000", "-ac", "1",
-         "-sample_fmt", "s16", tmp.name],
-        check=True, capture_output=True,
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            audio_path,
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-sample_fmt",
+            "s16",
+            tmp_path,
+        ],
+        check=True,
+        capture_output=True,
     )
-    return tmp.name, True
+    return tmp_path, True
 
 
 def extract_features(audio_path: str) -> dict:
@@ -287,7 +314,9 @@ def extract_features(audio_path: str) -> dict:
         y, sr = librosa.load(wav_path, sr=None, mono=True)
         duration = float(snd.get_total_duration())
 
-        pitch = snd.to_pitch(time_step=TIME_STEP, pitch_floor=PITCH_FLOOR, pitch_ceiling=PITCH_CEILING)
+        pitch = snd.to_pitch(
+            time_step=TIME_STEP, pitch_floor=PITCH_FLOOR, pitch_ceiling=PITCH_CEILING
+        )
         time = pitch.xs()
         f0 = pitch.selected_array["frequency"].astype(float)
         f0[f0 <= 0] = np.nan
@@ -298,21 +327,31 @@ def extract_features(audio_path: str) -> dict:
         int_vals = intensity.values[0].astype(float)
         int_interp = np.interp(time, int_time, int_vals)
 
-        harmonicity = snd.to_harmonicity_cc(time_step=TIME_STEP, minimum_pitch=PITCH_FLOOR)
+        harmonicity = snd.to_harmonicity_cc(
+            time_step=TIME_STEP, minimum_pitch=PITCH_FLOOR
+        )
         hnr_time = harmonicity.xs()
         hnr_vals = harmonicity.values[0].astype(float)
         hnr_vals[hnr_vals <= -200] = np.nan
         vh = np.isfinite(hnr_vals)
-        hnr_interp = np.interp(time, hnr_time[vh], hnr_vals[vh]) if vh.sum() >= 2 else np.full_like(time, np.nan)
+        hnr_interp = (
+            np.interp(time, hnr_time[vh], hnr_vals[vh])
+            if vh.sum() >= 2
+            else np.full_like(time, np.nan)
+        )
 
         formant = snd.to_formant_burg(time_step=TIME_STEP)
         f1 = np.array([formant.get_value_at_time(1, t) for t in time], dtype=float)
         f2 = np.array([formant.get_value_at_time(2, t) for t in time], dtype=float)
         f3 = np.array([formant.get_value_at_time(3, t) for t in time], dtype=float)
 
-        pp = praat_call(snd, "To PointProcess (periodic, cc)", PITCH_FLOOR, PITCH_CEILING)
+        pp = praat_call(
+            snd, "To PointProcess (periodic, cc)", PITCH_FLOOR, PITCH_CEILING
+        )
         jitter = float(praat_call(pp, "Get jitter (local)", 0, 0, 0.0001, 0.02, 1.3))
-        shimmer = float(praat_call([snd, pp], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6))
+        shimmer = float(
+            praat_call([snd, pp], "Get shimmer (local)", 0, 0, 0.0001, 0.02, 1.3, 1.6)
+        )
 
         onsets, onset_env = detect_intensity_onsets(int_time, int_vals)
         tempo = estimate_tempo(onsets)
@@ -339,11 +378,17 @@ def extract_features(audio_path: str) -> dict:
 
         hop = max(1, int(TIME_STEP * sr))
         mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20, hop_length=hop, n_fft=2048)
-        mfcc_times = librosa.frames_to_time(np.arange(mfcc.shape[1]), sr=sr, hop_length=hop)
+        mfcc_times = librosa.frames_to_time(
+            np.arange(mfcc.shape[1]), sr=sr, hop_length=hop
+        )
 
-        mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, hop_length=hop, n_fft=2048)
+        mel = librosa.feature.melspectrogram(
+            y=y, sr=sr, n_mels=128, hop_length=hop, n_fft=2048
+        )
         logmel = librosa.power_to_db(mel, ref=np.max)
-        logmel_times = librosa.frames_to_time(np.arange(logmel.shape[1]), sr=sr, hop_length=hop)
+        logmel_times = librosa.frames_to_time(
+            np.arange(logmel.shape[1]), sr=sr, hop_length=hop
+        )
 
         return {
             "path": audio_path,

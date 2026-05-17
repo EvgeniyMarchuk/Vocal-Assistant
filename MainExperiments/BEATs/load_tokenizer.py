@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import torch
-from Tokenizers import TokenizersConfig, Tokenizers
+from Tokenizers import Tokenizers, TokenizersConfig
 
 # load the pre-trained checkpoints
 checkpoint_path = Path(__file__).with_name("Tokenizer_iter2.pt")
@@ -12,9 +12,9 @@ if not checkpoint_path.exists():
     )
 checkpoint = torch.load(checkpoint_path)
 
-cfg = TokenizersConfig(checkpoint['cfg'])
+cfg = TokenizersConfig(checkpoint["cfg"])
 BEATs_tokenizer = Tokenizers(cfg)
-BEATs_tokenizer.load_state_dict(checkpoint['model'])
+BEATs_tokenizer.load_state_dict(checkpoint["model"])
 BEATs_tokenizer.eval()
 
 # tokenize the audio and generate the labels

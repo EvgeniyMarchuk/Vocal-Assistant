@@ -32,9 +32,9 @@ def build_paths(teacher_audio, student_audio, out_dir: Path):
 def metrics_to_json_safe(m: dict) -> dict:
     result = {}
     for k, v in m.items():
-        if isinstance(v, (float, np.floating)):
+        if isinstance(v, float | np.floating):
             result[k] = None if not np.isfinite(float(v)) else float(v)
-        elif isinstance(v, (int, np.integer)):
+        elif isinstance(v, int | np.integer):
             result[k] = int(v)
         else:
             result[k] = v
@@ -56,6 +56,7 @@ def _score_badge(score) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 # Student report — relative img/ links, distributable as a folder
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def build_student_md(
     teacher_path,
@@ -139,6 +140,7 @@ def build_student_md(
 # ─────────────────────────────────────────────────────────────────────────────
 # Technical analysis report — full table set + LLM input
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def build_analysis_data_md(
     teacher_path,

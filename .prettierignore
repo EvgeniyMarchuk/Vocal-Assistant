@@ -1,0 +1,23 @@
+# Generated outputs and binary artifacts
+MainExperiments/outputs/
+MainExperiments/tsne_plots/
+MainExperiments/BEATs/Evaluation_Results/
+reports/
+reports_exercises/
+exercises_unpacked/
+
+# Large/opaque documents
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.m4a
+*.wav
+*.docx
+
+# Python and notebook runtime artifacts
+.venv/
+venv/
+env/
+__pycache__/
+.ipynb_checkpoints/
