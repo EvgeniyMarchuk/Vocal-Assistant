@@ -4,7 +4,7 @@
 
 Проект состоит из трёх независимых компонентов:
 - **Telegram-бот** — приём голосовых сообщений и конвертация аудио
-- **Система анализа** — акустический анализ пары «учитель / ученик» и генерация фидбэка через LLM
+- **Анализ голоса** — акустический анализ пары «эталон / ученик» и генерация фидбэка через LLM
 - **ML-эксперименты** — исследование SSL-моделей (BEATs, Wav2Vec2, WavLM, Whisper) на датасете VocalSet
 
 ---
@@ -13,24 +13,35 @@
 
 ```
 Vocal-Assistant/
+├── analyze.py                    # Главный скрипт построения отчёта
+├── vocal_analysis/               # Пакет анализа
+│   ├── __init__.py               # Публичный API
+│   ├── features.py               # Извлечение Praat / librosa-признаков
+│   ├── alignment.py              # DTW-выравнивание по F0
+│   ├── evaluation.py             # Скоры и текстовый отчёт
+│   ├── feedback.py               # LLM-фидбэк через Ollama
+│   ├── visualization.py          # PNG-графики
+│   ├── plot_style.py             # Палитра, единый стиль, helpers
+│   ├── report.py                 # Сборка markdown-отчётов
+│   ├── utils.py                  # Константы и math-helpers
+│   └── requirements.txt
 ├── bot/                          # Telegram-бот
 │   ├── bot.py
 │   ├── Dockerfile
 │   ├── docker-compose.yml
 │   ├── requirements.txt
 │   └── .env.example
-├── Praat_PitchEstimation/        # Анализ и генерация фидбэка
-│   ├── report_generator.py       # Основной скрипт: полный отчёт + LLM-фидбэк
-│   ├── generate_feedback.py      # Генерация фидбэка по готовому отчёту
-│   ├── pitch.py                  # Базовое извлечение Praat-признаков
-│   ├── time_pitch.py             # Временной анализ питча + DTW
-│   └── requirements.txt
 ├── MainExperiments/              # Jupyter-ноутбуки с ML-экспериментами
 │   ├── BEATs/                    # Реализация модели BEATs (Microsoft)
 │   ├── outputs/                  # Метрики обученных моделей (JSON, CSV)
 │   ├── tsne_plots/               # t-SNE / PCA визуализации эмбеддингов
 │   └── *.ipynb
 └── reports/                      # Сгенерированные отчёты (создаётся автоматически)
+    └── <эталон>__vs__<ученик>/
+        ├── report_student.md
+        ├── analysis_data.md
+        ├── report.json
+        └── img/*.png
 ```
 
 ---
@@ -41,14 +52,13 @@ Vocal-Assistant/
 
 - Python 3.10+
 - [Ollama](https://ollama.com) с установленной моделью
-- ffmpeg (для конвертации аудио)
+- ffmpeg (для конвертации аудио в WAV, если на входе другой формат)
 
 ### Установка
 
 ```bash
-cd Praat_PitchEstimation
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r vocal_analysis/requirements.txt
 ```
 
 Установить Ollama и скачать модель:
@@ -60,7 +70,7 @@ ollama pull qwen2.5:7b   # ~4.7 GB, рекомендуется для GPU ≥ 8 
 
 ### Подготовка аудио
 
-Скрипт принимает файлы в формате WAV. Конвертация из других форматов:
+Скрипт принимает WAV напрямую и автоматически конвертирует другие форматы через ffmpeg. Если хочется сделать это вручную:
 
 ```bash
 ffmpeg -i input.m4a -ar 16000 -ac 1 -acodec pcm_s16le output.wav
@@ -69,8 +79,7 @@ ffmpeg -i input.m4a -ar 16000 -ac 1 -acodec pcm_s16le output.wav
 ### Запуск анализа
 
 ```bash
-# Из корня репозитория (если используется корневой .venv)
-python3 Praat_PitchEstimation/report_generator.py \
+python3 analyze.py \
     --teacher path/to/teacher.wav \
     --student path/to/student.wav \
     --out ./reports \
@@ -79,7 +88,7 @@ python3 Praat_PitchEstimation/report_generator.py \
 
 | Флаг | По умолчанию | Описание |
 |------|-------------|----------|
-| `--teacher` | — | Путь к WAV учителя (обязательно) |
+| `--teacher` | — | Путь к WAV эталона (обязательно) |
 | `--student` | — | Путь к WAV ученика (обязательно) |
 | `--out` | `./reports` | Папка для сохранения отчётов |
 | `--model` | `qwen3:4b` | Модель Ollama |
@@ -88,14 +97,15 @@ python3 Praat_PitchEstimation/report_generator.py \
 
 ### Структура отчёта
 
-Для каждой пары создаётся отдельная папка `reports/<учитель>__vs__<ученик>/`:
+Для каждой пары создаётся отдельная папка `reports/<эталон>__vs__<ученик>/`:
 
 ```
 reports/
 └── Спич_да__vs__Спич_нет_смена_смыкания/
-    ├── report.md        ← Markdown-отчёт с визуализациями и фидбэком
-    ├── report.json      ← Сырые метрики в JSON
-    └── img/             ← Визуализации (11 PNG)
+    ├── report_student.md   ← Отчёт для ученика (графики + LLM-фидбэк)
+    ├── analysis_data.md    ← Полный технический отчёт со всеми метриками
+    ├── report.json         ← Машиночитаемые метрики
+    └── img/                ← Визуализации (11 PNG)
         ├── pitch_contours.png
         ├── pitch_error.png
         ├── pitch_error_hist.png
@@ -109,28 +119,25 @@ reports/
         └── cpp_alpha.png
 ```
 
+Чтобы поделиться отчётом — отправь всю папку пары (или zip).
+
 ### Что анализируется
 
 | Категория | Метрики |
 |-----------|---------|
-| **Интонация** | DTW-выравнивание F0, средняя ошибка в центах, % нот в ±25/50/100¢ |
+| **Интонация** | DTW-выравнивание F0, средняя ошибка в центах, % нот в ±25 / ±50 / ±100¢ |
 | **Ритм** | MAE вступлений (мс), MAE длительностей, расхождение темпа |
-| **Атака** | Время нарастания (мс), прирост громкости (dB) |
+| **Атака** | Время нарастания (мс), прирост громкости (дБ) |
 | **Дыхание** | Voiced ratio, длина пауз |
 | **Смыкание** | HNR, jitter, shimmer |
 | **Estill-признаки** | CPP, H1−H2, Alpha ratio, Singer's formant, Spectral tilt |
 
-### Только фидбэк по готовому отчёту
+### Стиль графиков
 
-Если технический отчёт уже есть, можно запустить только генерацию фидбэка:
-
-```bash
-python3 Praat_PitchEstimation/generate_feedback.py \
-    --report_path reports/my_pair/report.md \
-    --output feedback.txt \
-    --backend ollama \
-    --ollama-model qwen2.5:7b
-```
+Все PNG используют единую палитру и подписи на русском с единицами в скобках:
+- **Эталон** — глубокий синий (`#2E5C9E`), **Ученик** — коралловый (`#E26A4F`).
+- На графике pitch-контура ось Y подписана нотами (например, `A4`), фоном — полутоновая сетка.
+- На графике pitch-error фон поделён на три зоны: зелёная ±25¢ («хорошо»), жёлтая ±50¢ («приемлемо»), красная ±100¢ («плохо»); линии MAE и медианы подписаны.
 
 ---
 
@@ -190,13 +197,12 @@ jupyter notebook MainExperiments/
 | `TELEGRAM_BOT_TOKEN` | bot | — (обязательно) |
 | `VOCAL_FEEDBACK_MODEL` | анализ | `qwen3:4b` |
 | `OLLAMA_CHAT_URL` | анализ | `http://127.0.0.1:11434/api/chat` |
-| `VOCAL_FEEDBACK_GGUF` | анализ | `./mistral-7b-instruct-v0.2.Q4_K_M.gguf` |
 
 ---
 
 ## Системные зависимости
 
-- **ffmpeg** — конвертация аудио (обязательно для бота и анализа)
+- **ffmpeg** — конвертация аудио (нужен и боту, и анализу для не-WAV-входа)
 - **Ollama** — локальный LLM-сервер для генерации фидбэка
 
 Проверка:

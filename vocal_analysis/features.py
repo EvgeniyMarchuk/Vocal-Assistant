@@ -11,9 +11,15 @@ from parselmouth.praat import call as praat_call
 from scipy.signal import find_peaks
 from scipy.stats import linregress
 
-from rg_utils import (
-    PITCH_FLOOR, PITCH_CEILING, TIME_STEP,
-    safe_mean, safe_median, safe_std, safe_pct, moving_average, estimate_tempo,
+from .utils import (
+    PITCH_CEILING,
+    PITCH_FLOOR,
+    TIME_STEP,
+    estimate_tempo,
+    moving_average,
+    safe_median,
+    safe_pct,
+    safe_std,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────

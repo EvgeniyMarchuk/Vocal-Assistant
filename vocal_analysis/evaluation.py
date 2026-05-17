@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import numpy as np
 
-from rg_utils import (
-    safe_mean, safe_median, safe_std, safe_pct, clamp, fmt,
+from .features import attack_summary, vibrato_metrics
+from .utils import (
+    clamp,
+    fmt,
+    safe_mean,
+    safe_median,
+    safe_pct,
+    safe_std,
 )
-from rg_features import attack_summary, vibrato_metrics
 
 
 # ─────────────────────────────────────────────────────────────────────────────
