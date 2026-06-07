@@ -493,6 +493,37 @@ def build_rule_based_feedback(metrics: dict, flags: Iterable[str] | None = None)
     return "\n".join(lines)
 
 
+def _expand_inline_exercises(text: str) -> str:
+    """Fix flat exercise lines where Цель/Как делать/Самопроверка are on one line.
+
+    Converts:
+        - **Name** **Цель**: X **Как делать**: Y **Самопроверка**: Z
+    to:
+        - **Name**
+           - **Цель**: X
+           - **Как делать**: Y
+           - **Самопроверка**: Z
+    """
+    result = []
+    for line in text.splitlines():
+        m = re.match(
+            r'^(\s*(?:[-•]|\d+\.)\s+\*\*[^*\n]+\*\*)\s+\*\*Цель\*\*:\s*(.+)',
+            line,
+        )
+        if m:
+            prefix = m.group(1)
+            rest = m.group(2)
+            parts = re.split(r'\s*\*\*(Как делать|Самопроверка)\*\*:\s*', rest)
+            if len(parts) == 5:
+                result.append(prefix)
+                result.append(f'   - **Цель**: {parts[0].strip()}')
+                result.append(f'   - **Как делать**: {parts[2].strip()}')
+                result.append(f'   - **Самопроверка**: {parts[4].strip()}')
+                continue
+        result.append(line)
+    return '\n'.join(result)
+
+
 def _strip_thinking(text: str) -> str:
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
     if "</think>" in text:
@@ -528,6 +559,7 @@ def _strip_thinking(text: str) -> str:
         )
 
     text = re.sub(r"\n{3,}", "\n\n", text)
+    text = _expand_inline_exercises(text)
     return text.strip()
 
 

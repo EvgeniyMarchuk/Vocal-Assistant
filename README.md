@@ -24,6 +24,7 @@ Vocal-Assistant/
 │   ├── visualization.py          # PNG-графики
 │   ├── plot_style.py             # Палитра, единый стиль, helpers
 │   ├── report.py                 # Сборка markdown-отчётов
+│   ├── beautiful_report.py        # Сборка красивых markdown-отчётов
 │   ├── utils.py                  # Константы и math-helpers
 │   └── requirements.txt
 ├── bot/                          # Telegram-бот
@@ -40,6 +41,8 @@ Vocal-Assistant/
 └── reports/                      # Сгенерированные отчёты (создаётся автоматически)
     └── <эталон>__vs__<ученик>/
         ├── report_student.md
+        ├── beautiful_report_student.md
+        ├── report_student.html
         ├── analysis_data.md
         ├── report.json
         └── img/*.png
@@ -57,9 +60,27 @@ Vocal-Assistant/
 
 ### Установка
 
+#### Способ 1: Conda (рекомендуется для macOS)
+```bash
+# Создание и активация conda окружения
+conda create -n vocal-assistant python=3.11 -y
+conda activate vocal-assistant
+
+# Установка зависимостей
+pip install -r vocal_analysis/requirements.txt
+pip install -r bot/requirements.txt
+pip install -r requirements-dev.txt
+```
+
+#### Способ 2: Стандартный venv (если conda не подходит)
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r vocal_analysis/requirements.txt
+```
+
+#### Быстрая активация (после установки)
+```bash
+./activate_env.sh
 ```
 
 Установить Ollama и скачать модель:
@@ -87,6 +108,28 @@ python3 analyze.py \
     --model qwen2.5:7b
 ```
 
+Для создания красиво оформленного отчета добавьте флаг `--beautiful-report`:
+
+```bash
+python3 analyze.py \
+    --teacher path/to/teacher.wav \
+    --student path/to/student.wav \
+    --out ./reports \
+    --model qwen2.5:7b \
+    --beautiful-report
+```
+
+Для создания HTML отчета с встроенными изображениями добавьте флаг `--html-report`:
+
+```bash
+python3 analyze.py \
+    --teacher path/to/teacher.wav \
+    --student path/to/student.wav \
+    --out ./reports \
+    --model qwen2.5:7b \
+    --html-report
+```
+
 | Флаг            | По умолчанию                      | Описание                         |
 | --------------- | --------------------------------- | -------------------------------- |
 | `--teacher`     | —                                 | Путь к WAV эталона (обязательно) |
@@ -95,6 +138,8 @@ python3 analyze.py \
 | `--model`       | `qwen3:4b`                        | Модель Ollama                    |
 | `--ollama-url`  | `http://127.0.0.1:11434/api/chat` | Адрес Ollama API                 |
 | `--no-feedback` | —                                 | Пропустить генерацию LLM-фидбэка |
+| `--beautiful-report` | —                            | Создать красиво оформленный отчет |
+| `--html-report`      | —                            | Создать HTML отчет с встроенными изображениями |
 
 ### Структура отчёта
 
@@ -103,10 +148,12 @@ python3 analyze.py \
 ```
 reports/
 └── Спич_да__vs__Спич_нет_смена_смыкания/
-    ├── report_student.md   ← Отчёт для ученика (графики + LLM-фидбэк)
-    ├── analysis_data.md    ← Полный технический отчёт со всеми метриками
-    ├── report.json         ← Машиночитаемые метрики
-    └── img/                ← Визуализации (11 PNG)
+    ├── report_student.md        ← Отчёт для ученика (графики + LLM-фидбэк)
+    ├── beautiful_report_student.md ← Красиво оформленный отчёт для ученика
+    ├── report_student.html      ← HTML отчёт для ученика с встроенными изображениями
+    ├── analysis_data.md         ← Полный технический отчёт со всеми метриками
+    ├── report.json              ← Машиночитаемые метрики
+    └── img/                     ← Визуализации (11 PNG)
         ├── pitch_contours.png
         ├── pitch_error.png
         ├── pitch_error_hist.png
@@ -141,6 +188,38 @@ reports/
 - На графике pitch-контура ось Y подписана нотами (например, `A4`), фоном — полутоновая сетка.
 - На графике pitch-error фон поделён на три зоны: зелёная ±25¢ («хорошо»), жёлтая ±50¢ («приемлемо»), красная ±100¢ («плохо»); линии MAE и медианы подписаны.
 
+### Создание красивых отчетов
+
+Для создания более привлекательных визуально отчетов доступны два варианта:
+
+1. **Markdown отчет** с использованием расширенных возможностей HTML и CSS внутри markdown файлов.
+   Создается с флагом `--beautiful-report`:
+
+   ```bash
+   python3 analyze.py \
+       --teacher path/to/teacher.wav \
+       --student path/to/student.wav \
+       --beautiful-report
+   ```
+
+   Это создаст файл `beautiful_report_student.md` в директории отчета с улучшенным оформлением,
+   включая цветовую кодировку оценок и адаптивный дизайн.
+
+2. **HTML отчет** с встроенными изображениями в формате base64.
+   Создается с флагом `--html-report`:
+
+   ```bash
+   python3 analyze.py \
+       --teacher path/to/teacher.wav \
+       --student path/to/student.wav \
+       --html-report
+   ```
+
+   Это создаст файл `report_student.html` в директории отчета - полноценный HTML документ
+   с встроенными изображениями, который можно открыть в браузере и сразу увидеть красивый отчет.
+
+Подробнее о реализации и возможностях красивых отчетов см. в файле `BEAUTIFUL_REPORTS.md`.
+
 ---
 
 ## Компонент 2: Telegram-бот
@@ -161,8 +240,11 @@ docker compose down       # остановка
 ### Локальный запуск
 
 ```bash
+# Активируем окружение
+./activate_env.sh
+
+# Запуск бота
 cd bot
-pip install -r requirements.txt
 export TELEGRAM_BOT_TOKEN="<токен>"
 python3 bot.py
 ```
@@ -176,7 +258,10 @@ python3 bot.py
 Jupyter-ноутбуки для обучения и оценки моделей на датасете [VocalSet](https://zenodo.org/record/1442513).
 
 ```bash
-pip install torch torchaudio transformers datasets jupyter
+# Активируем окружение
+./activate_env.sh
+
+# Запуск Jupyter
 jupyter notebook MainExperiments/
 ```
 
@@ -195,6 +280,10 @@ jupyter notebook MainExperiments/
 Установка dev-инструментов:
 
 ```bash
+# Убедитесь, что окружение активировано
+./activate_env.sh
+
+# Установка dev-инструментов (уже выполнена в conda окружении)
 pip install -r requirements-dev.txt
 pre-commit install
 ```

@@ -14,13 +14,18 @@ from .report import (
     build_student_md,
     metrics_to_json_safe,
 )
+from .beautiful_report import build_beautiful_student_md
+from .html_report import build_html_student_report, md_file_to_html
 from .visualization import save_all_plots
 
 __all__ = [
     "align_by_pitch",
     "attack_metrics",
     "build_analysis_data_md",
+    "build_beautiful_student_md",
     "build_flags",
+    "build_html_student_report",
+    "md_file_to_html",
     "build_paths",
     "build_pedagogical_brief",
     "build_rule_based_feedback",
