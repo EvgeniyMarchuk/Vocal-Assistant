@@ -535,7 +535,7 @@ def generate_feedback(
     text_report: str,
     model: str = OLLAMA_MODEL,
     url: str = OLLAMA_CHAT_URL,
-    max_tokens: int = 1800,
+    max_tokens: int = 2800,
     pedagogical_brief: str | None = None,
 ) -> str:
     payload = {

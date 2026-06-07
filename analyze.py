@@ -21,16 +21,37 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import sys
 import warnings
 from pathlib import Path
+from time import perf_counter
 
 import numpy as np
 
-# Скрыть болтовню librosa/numba ещё до их импорта внутри пакета.
+# Установка сидов для детерминистичности
+SEED = 123
+random.seed(SEED)
+np.random.seed(SEED)
+
 warnings.filterwarnings("ignore")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 os.environ.setdefault("NUMBA_CACHE_DIR", "/tmp/numba_cache")
+os.environ["PYTHONHASHSEED"] = str(SEED)
+
+# Дополнительные настройки для детерминистичности библиотек
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+
+# Импорт библиотек после установки сидов
+import librosa
+import scipy
+
+# Настройка детерминистичности для библиотек
+# Для librosa DTW алгоритма - DTW в librosa детерминистичен по умолчанию
+# Для scipy.signal.find_peaks - алгоритм детерминистичен по умолчанию
+
+# Дополнительная настройка для обеспечения полной детерминистичности
+# torch не используется в проекте, поэтому импорт убран
 
 from vocal_analysis import (  # noqa: E402  (после env-настройки)
     align_by_pitch,
@@ -73,16 +94,21 @@ def main() -> None:
     parser.add_argument(
         "--no-feedback", action="store_true", help="Пропустить генерацию LLM-фидбэка"
     )
+    parser.add_argument(
+        "--crepe-pitch", action="store_true", help="Использовать CREPE для извлечения высоты тона вместо Praat"
+    )
     args = parser.parse_args()
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    start = perf_counter()
+
     print(f"[1/6] Извлечение признаков: {Path(args.teacher).name} ...", flush=True)
-    teacher = extract_features(args.teacher)
+    teacher = extract_features(args.teacher, use_crepe=args.crepe_pitch)
 
     print(f"[2/6] Извлечение признаков: {Path(args.student).name} ...", flush=True)
-    student = extract_features(args.student)
+    student = extract_features(args.student, use_crepe=args.crepe_pitch)
 
     print("[3/6] DTW-выравнивание и оценка ...", flush=True)
     alignment = align_by_pitch(teacher, student)
@@ -154,6 +180,7 @@ def main() -> None:
     else:
         print("[6/6] Пропуск LLM-фидбэка (--no-feedback).", flush=True)
 
+    print(f"Время формирования отчета: {perf_counter() - start:.1f}s")
     print("Запись отчётов ...", flush=True)
 
     student_md_path.write_text(

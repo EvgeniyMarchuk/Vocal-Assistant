@@ -11,6 +11,8 @@ from parselmouth.praat import call as praat_call
 from scipy.signal import find_peaks
 from scipy.stats import linregress
 
+CREPE_AVAILABLE: bool | None = None  # checked lazily inside extract_pitch_crepe
+
 from .utils import (
     PITCH_CEILING,
     PITCH_FLOOR,
@@ -275,6 +277,44 @@ def compute_spectral_features(y, sr, n_fft=4096, hop_length=512):
     }
 
 
+def extract_pitch_crepe(y, sr, time_step=TIME_STEP, fmin=PITCH_FLOOR, fmax=PITCH_CEILING):
+    """Extract pitch using CREPE. Imports torch/crepe lazily to avoid NumPy warnings at startup."""
+    global CREPE_AVAILABLE
+    if CREPE_AVAILABLE is None:
+        try:
+            import torch  # noqa: F401
+            import crepe as _crepe  # noqa: F401
+            CREPE_AVAILABLE = True
+        except ImportError:
+            CREPE_AVAILABLE = False
+
+    if not CREPE_AVAILABLE:
+        raise ImportError("CREPE не установлен. Установите: pip install crepe tensorflow")
+
+    import crepe  # already imported above; this just binds the name locally
+
+    if sr != 16000:
+        y_resampled = librosa.resample(y, orig_sr=sr, target_sr=16000)
+        sr_resampled = 16000
+    else:
+        y_resampled = y
+        sr_resampled = sr
+
+    time, f0, confidence, _ = crepe.predict(
+        y_resampled,
+        sr_resampled,
+        model_capacity='full',
+        step_size=int(time_step * 1000),  # milliseconds
+        verbose=0,
+    )
+
+    f0_filtered = np.where(confidence > 0.8, f0, np.nan)
+    f0_filtered = np.where(
+        (f0_filtered >= fmin) & (f0_filtered <= fmax), f0_filtered, np.nan
+    )
+    return time, f0_filtered
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Full feature extraction
 # ─────────────────────────────────────────────────────────────────────────────
@@ -306,7 +346,7 @@ def _ensure_wav(audio_path: str) -> tuple[str, bool]:
     return tmp_path, True
 
 
-def extract_features(audio_path: str) -> dict:
+def extract_features(audio_path: str, use_crepe: bool = False) -> dict:
     audio_path = str(audio_path)
     wav_path, is_tmp = _ensure_wav(audio_path)
     try:
@@ -314,14 +354,20 @@ def extract_features(audio_path: str) -> dict:
         y, sr = librosa.load(wav_path, sr=None, mono=True)
         duration = float(snd.get_total_duration())
 
-        pitch = snd.to_pitch(
-            time_step=TIME_STEP, pitch_floor=PITCH_FLOOR, pitch_ceiling=PITCH_CEILING
-        )
-        time = pitch.xs()
-        f0 = pitch.selected_array["frequency"].astype(float)
-        f0[f0 <= 0] = np.nan
-        voiced_mask = np.isfinite(f0)
+        # Pitch extraction: CREPE or Praat
+        if use_crepe:
+            time, f0 = extract_pitch_crepe(y, sr, TIME_STEP, PITCH_FLOOR, PITCH_CEILING)
+            voiced_mask = np.isfinite(f0)
+        else:
+            pitch = snd.to_pitch(
+                time_step=TIME_STEP, pitch_floor=PITCH_FLOOR, pitch_ceiling=PITCH_CEILING
+            )
+            time = pitch.xs()
+            f0 = pitch.selected_array["frequency"].astype(float)
+            f0[f0 <= 0] = np.nan
+            voiced_mask = np.isfinite(f0)
 
+        # Always extract auxiliary features from Praat (independent of pitch method)
         intensity = snd.to_intensity(time_step=TIME_STEP, minimum_pitch=PITCH_FLOOR)
         int_time = intensity.xs()
         int_vals = intensity.values[0].astype(float)
@@ -356,6 +402,7 @@ def extract_features(audio_path: str) -> dict:
         onsets, onset_env = detect_intensity_onsets(int_time, int_vals)
         tempo = estimate_tempo(onsets)
 
+        # Extract RMS
         rms = librosa.feature.rms(y=y)[0]
         rms_time = librosa.frames_to_time(np.arange(len(rms)), sr=sr)
         rms_interp = np.interp(time, rms_time, rms)

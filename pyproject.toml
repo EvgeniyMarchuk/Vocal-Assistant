@@ -23,6 +23,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+crepe = [
+    "torch>=2.2.0",
+    "torchaudio>=2.2.0",
+    "crepe>=0.0.12",
+]
 dev = [
     "black[jupyter]>=24.8.0",
     "isort>=5.13.0",
