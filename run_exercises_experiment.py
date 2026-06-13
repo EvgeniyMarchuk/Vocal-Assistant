@@ -221,11 +221,11 @@ def main() -> None:
         safe_r["metrics"] = {
             k: (
                 float(v)
-                if isinstance(v, float | np.floating) and np.isfinite(v)
+                if isinstance(v, (float, np.floating)) and np.isfinite(v)
                 else (
                     None
-                    if isinstance(v, float | np.floating)
-                    else int(v) if isinstance(v, int | np.integer) else v
+                    if isinstance(v, (float, np.floating))
+                    else int(v) if isinstance(v, (int, np.integer)) else v
                 )
             )
             for k, v in r["metrics"].items()

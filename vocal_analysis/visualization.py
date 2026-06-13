@@ -143,7 +143,7 @@ def _plot_pitch_contours(teacher, student, path: Path) -> None:
     ax.set_yticklabels(
         [
             f"{name} ({int(round(hz))} Гц)"
-            for name, hz in zip(labels, ticks, strict=False)
+            for name, hz in zip(labels, ticks)
         ]
     )
     ax.minorticks_off()
@@ -711,7 +711,7 @@ def _plot_scores_summary(metrics, path: Path) -> None:
         y_pos, plot_vals, color=colors, edgecolor="white", height=0.65, zorder=2
     )
 
-    for bar, val in zip(bars, values, strict=False):
+    for bar, val in zip(bars, values):
         if np.isfinite(val):
             ax.text(
                 min(val + 1.5, 100.5),

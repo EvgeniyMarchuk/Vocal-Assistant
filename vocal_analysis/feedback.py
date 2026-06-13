@@ -563,11 +563,31 @@ def _strip_thinking(text: str) -> str:
     return text.strip()
 
 
+def _is_complete_feedback(text: str) -> bool:
+    """Check that the LLM returned the full required feedback structure."""
+    if not text.strip():
+        return False
+    missing_heading = any(heading not in text for heading in _EXPECTED_HEADINGS)
+    if missing_heading:
+        return False
+
+    last_heading = _EXPECTED_HEADINGS[-1]
+    summary = text.split(last_heading, 1)[-1].strip()
+    if len(summary) < 40:
+        return False
+
+    # Common signs of hard token truncation: unfinished markdown/list item.
+    tail = text.rstrip()
+    if tail.endswith(("-", "—", "→", ":", ";", ",", "**")):
+        return False
+    return True
+
+
 def generate_feedback(
     text_report: str,
     model: str = OLLAMA_MODEL,
     url: str = OLLAMA_CHAT_URL,
-    max_tokens: int = 2800,
+    max_tokens: int = 4096,
     pedagogical_brief: str | None = None,
 ) -> str:
     payload = {
@@ -610,4 +630,11 @@ def generate_feedback(
     content = data.get("message", {}).get("content", "")
     if not content:
         raise RuntimeError(f"Ollama вернул пустой ответ: {data}")
-    return _strip_thinking(content)
+
+    feedback = _strip_thinking(content)
+    if not _is_complete_feedback(feedback):
+        raise RuntimeError(
+            "Ollama вернул неполный фидбэк: ответ был обрезан или не содержит все 6 разделов. "
+            "Будет использован детерминированный fallback-фидбэк."
+        )
+    return feedback
